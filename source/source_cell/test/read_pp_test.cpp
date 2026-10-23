@@ -60,6 +60,45 @@
 
 #include "source_cell/read_pp.h"
 #include "source_cell/atom_pseudo.h"
+#include "source_io/module_tb2j/validate.h"
+#include <limits>
+
+TEST(Tb2jAtomicChannels, RejectsInvalidBasis)
+{
+    Atom_pseudo pp;
+    pp.pp_type = "NC";
+    pp.nchi = 1;
+    pp.mesh = 3;
+    pp.r = {0.0, 0.5, 1.0};
+    pp.rab = {0.5, 0.5, 0.5};
+    pp.lchi = {0};
+    pp.chi.create(1, 3);
+    pp.chi(0, 1) = 1.0;
+    EXPECT_EQ(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+
+    for (const auto& type : {"PAW", "US"})
+    {
+        pp.pp_type = type;
+        EXPECT_NE(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+    }
+    pp.pp_type = "NC";
+    pp.has_so = true;
+    EXPECT_NE(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+    pp.has_so = false;
+    pp.nchi = 0;
+    EXPECT_NE(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+    pp.nchi = 1;
+    pp.lchi[0] = -1;
+    EXPECT_NE(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+    pp.lchi[0] = 0;
+    pp.chi(0, 1) = 0.0;
+    EXPECT_NE(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+    pp.chi(0, 1) = std::numeric_limits<double>::infinity();
+    EXPECT_NE(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+    pp.chi(0, 1) = std::numeric_limits<double>::quiet_NaN();
+    EXPECT_NE(ModuleIO::Tb2j::atomic_channel_error(pp), nullptr);
+}
+
 class ReadPPTest : public testing::Test
 {
 protected:

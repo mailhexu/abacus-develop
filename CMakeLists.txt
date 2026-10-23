@@ -54,6 +54,8 @@ option(ENABLE_FLOAT_FFTW "Enable using single-precision FFTW library." OFF)
 option(ENABLE_LCAO "Enable LCAO algorithm" ON)
 option(ENABLE_DFTD4 "Enable DFT-D4 dispersion correction" OFF)
 option(ENABLE_PLUMED "Enable using the PLUMED enhanced-sampling library" OFF)
+option(ENABLE_TB2J_PROJECTOR_NETCDF
+       "Enable the optional PW UPF atomic-projector NetCDF exporter" OFF)
 
 option(BUILD_TESTING "Build unittests" OFF)
 option(DEBUG_INFO "Print message to debug" OFF)
@@ -169,6 +171,33 @@ endif()
 # enable json support
 if(ENABLE_JSON)
   find_package(nlohmann_json REQUIRED)
+endif()
+
+if(ENABLE_TB2J_PROJECTOR_NETCDF)
+  find_path(TB2J_NETCDF_INCLUDE_DIR NAMES netcdf.h REQUIRED)
+  find_library(TB2J_NETCDF_C_LIBRARY NAMES netcdf REQUIRED)
+  include(CheckCXXSourceCompiles)
+  include(CMakePushCheckState)
+  cmake_push_check_state(RESET)
+  set(CMAKE_REQUIRED_INCLUDES "${TB2J_NETCDF_INCLUDE_DIR}")
+  set(CMAKE_REQUIRED_LIBRARIES "${TB2J_NETCDF_C_LIBRARY}")
+  check_cxx_source_compiles("
+    #include <netcdf.h>
+    #include <netcdf_meta.h>
+    #if !NC_HAS_HDF5
+    #error NetCDF-4 group support is required
+    #endif
+    int main() { int group; return nc_def_grp(-1, \"tb2j\", &group); }
+    " TB2J_NETCDF_HAS_NC4)
+  cmake_pop_check_state()
+  if(NOT TB2J_NETCDF_HAS_NC4)
+    message(FATAL_ERROR
+      "ENABLE_TB2J_PROJECTOR_NETCDF requires the NetCDF C library with NetCDF-4 group support")
+  endif()
+  add_library(abacus_tb2j_netcdf UNKNOWN IMPORTED)
+  set_target_properties(abacus_tb2j_netcdf PROPERTIES
+    IMPORTED_LOCATION "${TB2J_NETCDF_C_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${TB2J_NETCDF_INCLUDE_DIR}")
 endif()
 
 # get commit info

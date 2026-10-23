@@ -32,6 +32,7 @@ include(CompilerConfiguration)
 set(_abacus_feature_definitions
     __FFTW3
     $<$<BOOL:${ENABLE_JSON}>:__JSON>
+    $<$<BOOL:${ENABLE_TB2J_PROJECTOR_NETCDF}>:__TB2J_PROJECTOR_NETCDF>
     $<$<BOOL:${USE_CUDA_ON_DCU}>:__CUDA_ON_DCU>
     $<$<BOOL:${USE_CUDA_MPI}>:__CUDA_MPI>
     $<$<BOOL:${ENABLE_ABACUS_LIBM}>:__ABACUS_LIBM>
@@ -282,7 +283,13 @@ set(_abacus_feature_libs
     $<$<BOOL:${ENABLE_LIBRI}>:cereal::cereal>
     $<$<BOOL:${ENABLE_LIBXC}>:Libxc::xc>
     $<$<BOOL:${ENABLE_PLUMED}>:PLUMED::plumed>)
+if(ENABLE_TB2J_PROJECTOR_NETCDF)
+  list(APPEND _abacus_feature_libs abacus_tb2j_netcdf)
+endif()
 set(_abacus_feature_include_dirs)
+if(ENABLE_TB2J_PROJECTOR_NETCDF)
+  list(APPEND _abacus_feature_include_dirs "${TB2J_NETCDF_INCLUDE_DIR}")
+endif()
 set(_abacus_feature_compile_options)
 
 if(ENABLE_ELPA)

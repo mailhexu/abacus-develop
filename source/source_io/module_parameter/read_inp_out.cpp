@@ -293,6 +293,43 @@ With `init_wfc file binary`, ABACUS reads only unindexed binary `wf*_pw.dat` fil
         this->add_item(item);
     }
     {
+        Input_Item item("out_tb2j");
+        item.annotation = "request the PW UPF atomic-projector dataset for TB2J";
+        item.category = "Output information";
+        item.type = "Bool";
+        item.description = "Request TB2J atomic-projector export for a converged scalar norm-conserving "
+                           "UPF PW calculation with two collinear spins, no U/SOC, and a generated "
+                           "full-BZ mesh (symmetry -1). Requires ENABLE_TB2J_PROJECTOR_NETCDF.";
+        item.default_value = "false";
+        item.unit = "";
+        item.set_availability("basis_type==pw and esolver_type==ksdft");
+        read_sync_bool(input.out_tb2j);
+        item.check_value = [](const Input_Item&, const Parameter& para) {
+            const auto& input = para.input;
+            if (!input.out_tb2j)
+            {
+                return;
+            }
+#ifndef __TB2J_PROJECTOR_NETCDF
+            ModuleBase::WARNING_QUIT("ReadInput",
+                                    "out_tb2j requires a build with ENABLE_TB2J_PROJECTOR_NETCDF=ON");
+#else
+            if (input.basis_type != "pw" || input.esolver_type != "ksdft"
+                || input.nspin != 2 || input.noncolin || input.lspinorb || input.dft_plus_u != 0)
+            {
+                ModuleBase::WARNING_QUIT("ReadInput",
+                                        "out_tb2j requires PW ksdft, nspin=2, and no U/SOC/noncollinearity");
+            }
+            if (input.symmetry != "-1")
+            {
+                ModuleBase::WARNING_QUIT("ReadInput",
+                                        "out_tb2j requires symmetry -1 and a generated full-BZ mesh");
+            }
+#endif
+        };
+        this->add_item(item);
+    }
+    {
         Input_Item item("out_wfc_lcao");
         item.annotation = "ouput LCAO wave functions, 0, no output 1: text, 2: binary";
         item.category = "Output information";

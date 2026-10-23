@@ -8,6 +8,9 @@
 #include "source_hsolver/diago_params.h"
 #include "source_hsolver/hsolver_pw.h"
 #include "source_io/module_parameter/parameter.h"
+#ifdef __TB2J_PROJECTOR_NETCDF
+#include "source_io/module_tb2j/validate.h"
+#endif
 #include "source_pw/module_pwdft/force_pw.h"
 #include "source_pw/module_pwdft/hamilt_pw.h"
 #include "source_pw/module_pwdft/stress_pw.h"
@@ -100,6 +103,12 @@ void ESolver_KS_PW<T, Device>::before_all_runners(BaseCell& basecell, const Inpu
                                this->pw_big,
                                this->solvent,
                                inp);
+#ifdef __TB2J_PROJECTOR_NETCDF
+    if (inp.out_tb2j)
+    {
+        ModuleIO::Tb2j::validate_species(ucell, inp.pseudo_dir);
+    }
+#endif
 
     this->stp.before_runner(ucell, this->kv, this->sf, *this->pw_wfc, this->ppcell.lmaxkb, *this->inp_);
 

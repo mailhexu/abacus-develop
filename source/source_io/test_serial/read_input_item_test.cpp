@@ -87,6 +87,40 @@ TEST_F(InputTest, RelaxMethod)
     EXPECT_EQ(find_label("relax_new", readinput.input_lists), readinput.input_lists.end());
 }
 
+TEST_F(InputTest, Tb2jExportRejectsUnsupportedRequests)
+{
+    ModuleIO::ReadInput readinput(0);
+    Parameter param;
+    auto it = find_label("out_tb2j", readinput.input_lists);
+    ASSERT_NE(it, readinput.input_lists.end());
+    it->second.str_values = {"1"};
+    it->second.read_value(it->second, param);
+#ifndef __TB2J_PROJECTOR_NETCDF
+    EXPECT_EXIT(it->second.check_value(it->second, param), ::testing::ExitedWithCode(1), "");
+#else
+    auto& input = TestParameters::input(param);
+    input.basis_type = "pw";
+    input.nspin = 2;
+    input.symmetry = "0";
+    EXPECT_EXIT(it->second.check_value(it->second, param), ::testing::ExitedWithCode(1), "");
+    input.symmetry = "-1";
+    input.basis_type = "lcao";
+    EXPECT_EXIT(it->second.check_value(it->second, param), ::testing::ExitedWithCode(1), "");
+    input.basis_type = "pw";
+    input.nspin = 1;
+    EXPECT_EXIT(it->second.check_value(it->second, param), ::testing::ExitedWithCode(1), "");
+    input.nspin = 2;
+    input.dft_plus_u = 1;
+    EXPECT_EXIT(it->second.check_value(it->second, param), ::testing::ExitedWithCode(1), "");
+    input.dft_plus_u = 0;
+    input.lspinorb = true;
+    EXPECT_EXIT(it->second.check_value(it->second, param), ::testing::ExitedWithCode(1), "");
+    input.lspinorb = false;
+    input.noncolin = true;
+    EXPECT_EXIT(it->second.check_value(it->second, param), ::testing::ExitedWithCode(1), "");
+#endif
+}
+
 TEST_F(InputTest, PccSelectionAndUnsupportedCombinations)
 {
     ModuleIO::ReadInput readinput(0);

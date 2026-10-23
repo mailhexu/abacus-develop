@@ -23,6 +23,21 @@ Dependency: [Libxc](https://tddft.org/programs/libxc/) >= 5.1.7 .
 cmake -B build -DENABLE_LIBXC=ON
 ```
 
+## Build with TB2J PW atomic-projector support
+
+`ENABLE_TB2J_PROJECTOR_NETCDF` is OFF by default. Enable it with
+`-DENABLE_TB2J_PROJECTOR_NETCDF=ON` to link the NetCDF C library with NetCDF-4
+group support. If the library is outside standard paths, use `CMAKE_PREFIX_PATH`
+or set `TB2J_NETCDF_INCLUDE_DIR` and `TB2J_NETCDF_C_LIBRARY` explicitly.
+Ordinary builds do not require NetCDF.
+
+The runtime input `out_tb2j` is disabled by default. An enabled request requires
+PW `ksdft`, two collinear spins (`nspin 2`), no U/SOC, scalar norm-conserving UPF
+atomic wavefunctions, and a generated full-BZ mesh with `symmetry -1`.
+Unsupported builds reject the request instead of ignoring it.
+`symmetry 0` is not a full-BZ guarantee. Default PW and LCAO calculations do not
+perform projector-export work.
+
 ## Build with ML-ALGO
 
 If machine learning algorithms, including DeePKS and machine learning based kinetic energy density functional (ML-KEDF) for OFDFT, is required for DFT calculation, the following prerequisites and steps are needed:
