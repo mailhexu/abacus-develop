@@ -11,6 +11,7 @@
 // The unique_ptr member's destructor needs the complete type on every
 // configuration; the opt-in feature flag gates only the capture call.
 #include "source_io/module_tb2j/atomic_projectors.h"
+#include "source_io/module_tb2j/native_state.h"
 #include "source_pw/module_pwdft/force_pw.h"
 #include "source_pw/module_pwdft/hamilt_pw.h"
 #include "source_pw/module_pwdft/stress_pw.h"
@@ -576,6 +577,17 @@ void ESolver_KS_PW<T, Device>::after_all_runners(BaseCell& basecell)
                                         this->Pgrid,
                                         *this->inp_,
                                         GlobalV::ofs_running);
+
+#ifdef __TB2J_PROJECTOR_NETCDF
+    if (this->inp_->out_tb2j)
+    {
+        if (!this->conv_esolver || this->inp_->calculation == "nscf")
+        {
+            ModuleBase::WARNING_QUIT("TB2J native state", "Projector export requires a converged SCF state");
+        }
+        this->native_state_ = ModuleIO::Tb2j::NativeState::capture(ucell, this->kv, *this->pelec, *this->inp_);
+    }
+#endif
 
     elecstate::teardown_estate_pw(this->pelec, this->vsep_cell);
 }

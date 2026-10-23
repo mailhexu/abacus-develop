@@ -52,6 +52,24 @@ tables do not contain the cell-volume factor; `4*pi/sqrt(omega)` uses the curren
 cell at PW filling. These build/basis checks do not establish a completed
 NetCDF export or agreement with ABINIT exchange results.
 
+After confirmed SCF convergence, the opt-in path certifies the original generated
+Gamma/Monkhorst-Pack recipe through the native generator. Both spin copies must
+cover every expected point exactly once modulo reciprocal periods (tolerance
+`1e-10`); an explicit point list is not accepted merely because its count matches.
+Spin-pair weights must agree and the unique unit-sum weights must be uniform
+within `1e-12`. Recipe dimensions, offsets, counts, spin electron counts and both
+Fermi energies are retained in the private metadata and reported in the run log.
+
+Spectra use native global k/spin maps and the native replicated/distributed band
+layout. Only PW roots assemble band columns; one representative per physical
+k-point pool transfers metadata to the world-root writer. Ordinary and custom
+`ocp_set` occupations are unweighted using each actual nonzero native k weight,
+then checked against native spin-resolved and total electron counts. Both
+native spin Fermi values are retained, including in two-Fermi calculations;
+the legacy scalar Fermi field is not substituted. Energy and geometry conversion
+use ABACUS's own source constants. These certification checks still do not
+constitute a completed projector NetCDF dataset or an ABINIT exchange benchmark.
+
 ## Build with ML-ALGO
 
 If machine learning algorithms, including DeePKS and machine learning based kinetic energy density functional (ML-KEDF) for OFDFT, is required for DFT calculation, the following prerequisites and steps are needed:

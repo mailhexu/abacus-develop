@@ -13,6 +13,7 @@ namespace ModuleIO
 namespace Tb2j
 {
 class AtomicBasis;
+class NativeState;
 }
 } // namespace ModuleIO
 
@@ -70,6 +71,8 @@ class ESolver_KS_PW : public ESolver_KS
     // before the initial-guess mutates the pseudopotential data. Allocated
     // only inside the opt-in out_tb2j feature+flag; never touched otherwise.
     std::unique_ptr<ModuleIO::Tb2j::AtomicBasis> atomic_basis_;
+    // Certified spectral metadata lives only on the world-root writer.
+    std::unique_ptr<ModuleIO::Tb2j::NativeState> native_state_;
 };
 } // namespace ModuleESolver
 #endif

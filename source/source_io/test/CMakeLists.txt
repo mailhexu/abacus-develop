@@ -157,6 +157,15 @@ file(COPY
 )
 
 AddTest(
+  TARGET MODULE_IO_tb2j_native_state
+  LIBS parameter base device symmetry
+  SOURCES tb2j_native_state_test.cpp ../module_tb2j/native_state.cpp
+    ../../source_cell/klist.cpp ../../source_cell/klist_io.cpp
+    ../../source_cell/parallel_kpoints.cpp ../../source_cell/reciprocal_grid.cpp
+    ../../source_cell/cif_io.cpp
+)
+
+AddTest(
   TARGET MODULE_IO_output_log_test
   LIBS parameter base device
   SOURCES ../module_output/output_log.cpp outputlog_test.cpp ../../source_basis/module_pw/test/test_tool.cpp

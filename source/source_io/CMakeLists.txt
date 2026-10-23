@@ -124,6 +124,7 @@ if(ENABLE_TB2J_PROJECTOR_NETCDF)
   list(APPEND objects
       module_tb2j/sha256.cpp
       module_tb2j/atomic_projectors.cpp
+      module_tb2j/native_state.cpp
   )
 endif()
 
