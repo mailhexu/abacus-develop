@@ -189,10 +189,9 @@ class AtomicBasis
      * Native psi_init_atomic collinear conventions: getgpluskcar, Ylm_Real on
      * (lmax_ppwf+1)^2 real harmonics with lm = l*l + m, get_sk,
      * pow(NEG_IMAG_UNIT, l) phase, radial interpolation at |G+k| * tpiba.
-     * Rows [0, nproj()) are written for columns [0, npwk[ik]); the whole
-     * row-major region [0, nproj()) x stride is zeroed first, matching the
-     * native zero-then-fill behavior for reused buffers. The cell-dependent
-     * 4pi/sqrt(omega) is applied here from the current cell.
+     * Rows [0, nproj()) are assigned for columns [0, npwk[ik]); padding
+     * [npwk[ik], stride) is zeroed so reused buffers contain no stale values.
+     * The cell-dependent 4pi/sqrt(omega) is applied from the current cell.
      *
      * @param ik k-point index
      * @param ucell current cell (omega/tpiba/lmax_ppwf/atom layout)

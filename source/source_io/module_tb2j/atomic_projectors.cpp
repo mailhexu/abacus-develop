@@ -266,11 +266,10 @@ const char* AtomicBasis::fill_pw(const int ik,
     work.ylm.create(total_lm, npw, false);
     ModuleBase::YlmReal::Ylm_Real(total_lm, npw, work.gk.data(), work.ylm);
 
-    // zero the filled region like init_psig so reused buffers carry no stale
-    // values beyond npw
+    // Every active PW is assigned below; clear only padding in reused rows.
     for (int row = 0; row < nproj_; ++row)
     {
-        for (int col = 0; col < stride; ++col)
+        for (int col = npw; col < stride; ++col)
         {
             out[row * stride + col] = std::complex<double>(0.0, 0.0);
         }

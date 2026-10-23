@@ -166,6 +166,15 @@ AddTest(
 )
 
 AddTest(
+  TARGET MODULE_IO_tb2j_projection
+  LIBS xc_ planewave parameter psi device container base
+  SOURCES tb2j_projection_test.cpp ../module_tb2j/projection.cpp
+)
+if(ENABLE_LIBXC)
+  target_link_libraries(MODULE_IO_tb2j_projection PRIVATE Libxc::xc)
+endif()
+
+AddTest(
   TARGET MODULE_IO_output_log_test
   LIBS parameter base device
   SOURCES ../module_output/output_log.cpp outputlog_test.cpp ../../source_basis/module_pw/test/test_tool.cpp

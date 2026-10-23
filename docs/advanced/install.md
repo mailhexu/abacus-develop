@@ -70,6 +70,23 @@ the legacy scalar Fermi field is not substituted. Energy and geometry conversion
 use ABACUS's own source constants. These certification checks still do not
 constitute a completed projector NetCDF dataset or an ABINIT exchange benchmark.
 
+The private projection kernels preserve raw primal atomic/KS overlaps and the
+full intersite Gram matrix; they do not pre-dualize or discard channels.
+The inverse-metric condition limit is `1e12`; singular, nonfinite or unusable
+metrics are errors, not requests for regularization. Complete atomic sites
+include every radial channel and harmonic on that atom.
+
+The XC kernel reevaluates only native two-spin semilocal LDA/GGA XC from charge,
+including the native core-density and gradient treatment. It does not read
+total `v_eff`; meta-GGA and hybrid functionals are refused. Dense-to-smooth
+interpolation uses the native Fourier mapping on separate owned buffers.
+Native atomic PW coefficients already contain their volume normalization:
+their unscaled inverse-FFT fields use `1/nxyz` in potential matrix elements,
+not `omega/nxyz`. A constant potential therefore projects to that constant
+times the atomic Gram matrix. Site vertices retain the BZ-weighted onsite
+average over unique k points and convert native Ry to eV once. These numerical
+kernels are not yet a published NetCDF or cross-code exchange result.
+
 ## Build with ML-ALGO
 
 If machine learning algorithms, including DeePKS and machine learning based kinetic energy density functional (ML-KEDF) for OFDFT, is required for DFT calculation, the following prerequisites and steps are needed:

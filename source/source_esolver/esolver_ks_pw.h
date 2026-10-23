@@ -6,6 +6,7 @@
 #include "source_pw/module_pwdft/vsep_pw.h"
 
 #include <memory>
+#include <vector>
 #include <source_base/macros.h>
 
 namespace ModuleIO
@@ -73,6 +74,9 @@ class ESolver_KS_PW : public ESolver_KS
     std::unique_ptr<ModuleIO::Tb2j::AtomicBasis> atomic_basis_;
     // Certified spectral metadata lives only on the world-root writer.
     std::unique_ptr<ModuleIO::Tb2j::NativeState> native_state_;
+    // Owned smooth-grid XC-only spin difference, prepared after convergence
+    // only on the vertex-owning band group. Native potentials stay untouched.
+    std::vector<double> tb2j_delta_xc_;
 };
 } // namespace ModuleESolver
 #endif
