@@ -18,6 +18,10 @@ Pseudopot_upf::Pseudopot_upf()
 {
 }
 
+Pseudopot_upf::Pseudopot_upf(const bool preserve_full_mesh) : preserve_mesh_(preserve_full_mesh)
+{
+}
+
 Pseudopot_upf::~Pseudopot_upf()
 {
 }

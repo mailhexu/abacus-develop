@@ -118,6 +118,15 @@ if(ENABLE_LCAO)
   endif()
 endif()
 
+# TB2J projector exporter support (opt-in feature): immutable atomic basis
+# capture and its private SHA256 provenance helper.
+if(ENABLE_TB2J_PROJECTOR_NETCDF)
+  list(APPEND objects
+      module_tb2j/sha256.cpp
+      module_tb2j/atomic_projectors.cpp
+  )
+endif()
+
 add_library(
     io_input
     OBJECT

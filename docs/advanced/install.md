@@ -38,6 +38,20 @@ Unsupported builds reject the request instead of ignoring it.
 `symmetry 0` is not a full-BZ guarantee. Default PW and LCAO calculations do not
 perform projector-export work.
 
+The opt-in PW path captures each species' original UPF atomic wavefunctions
+before native initial-guess preparation. It retains the full source radial
+mesh, including an even final point, and every source channel in order:
+repeated angular momenta and zero/negative source occupations are not filters.
+The private immutable copy is normalized using the full radial mesh; raw-file
+SHA-256 provenance is retained. Native initialization keeps its existing
+occupation filtering, normalization and `pseudo_mesh`/`pseudo_rcut` policies.
+
+Atomic-projector rows use the native real-harmonic index `l*l + m` with
+`m = 0..2*l`, the native structure factor and `(-i)^l` phase. The radial
+tables do not contain the cell-volume factor; `4*pi/sqrt(omega)` uses the current
+cell at PW filling. These build/basis checks do not establish a completed
+NetCDF export or agreement with ABINIT exchange results.
+
 ## Build with ML-ALGO
 
 If machine learning algorithms, including DeePKS and machine learning based kinetic energy density functional (ML-KEDF) for OFDFT, is required for DFT calculation, the following prerequisites and steps are needed:

@@ -8,6 +8,14 @@
 #include <memory>
 #include <source_base/macros.h>
 
+namespace ModuleIO
+{
+namespace Tb2j
+{
+class AtomicBasis;
+}
+} // namespace ModuleIO
+
 namespace ModuleESolver
 {
 
@@ -57,6 +65,11 @@ class ESolver_KS_PW : public ESolver_KS
 
     // DFT-1/2 method
     VSep* vsep_cell = nullptr;
+
+    // Immutable all-channel atomic basis captured from the original UPF files
+    // before the initial-guess mutates the pseudopotential data. Allocated
+    // only inside the opt-in out_tb2j feature+flag; never touched otherwise.
+    std::unique_ptr<ModuleIO::Tb2j::AtomicBasis> atomic_basis_;
 };
 } // namespace ModuleESolver
 #endif

@@ -195,7 +195,9 @@ void Pseudopot_upf::read_pseudo_header(std::ifstream& ifs, Atom_pseudo& pp)
 
     ModuleBase::GlobalFunc::READ_VALUE(ifs, pp.lmax);
     ModuleBase::GlobalFunc::READ_VALUE(ifs, pp.mesh);
-    if (pp.mesh % 2 == 0)
+    // Preserve-mesh mode keeps the full even UPF mesh; the default native
+    // policy trims an even mesh to the preceding odd point for Simpson use.
+    if (!this->preserve_mesh_ && pp.mesh % 2 == 0)
     {
         pp.mesh -= 1;
         this->mesh_changed = true;

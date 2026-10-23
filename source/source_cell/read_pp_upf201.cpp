@@ -332,8 +332,10 @@ void Pseudopot_upf::read_pseudo_upf201_header(std::ifstream& ifs, Atom_pseudo& p
         else if (name[ip] == "mesh_size")
         {
             pp.mesh = atoi(val[ip].c_str());
+            // Preserve-mesh mode keeps the full even UPF mesh; the default
+            // native policy trims an even mesh to the preceding odd point.
             this->mesh_changed = false;
-            if (pp.mesh % 2 == 0)
+            if (!this->preserve_mesh_ && pp.mesh % 2 == 0)
             {
                 pp.mesh -= 1;
                 this->mesh_changed = true;
@@ -383,8 +385,12 @@ void Pseudopot_upf::read_pseudo_upf201_mesh(std::ifstream& ifs, Atom_pseudo& pp)
             {
                 pp.mesh = atoi(val[ip].c_str());
 
+                // Preserve-mesh mode keeps the full even UPF mesh; the
+                // default native policy trims an even mesh to the preceding
+                // odd point. This PP_MESH attribute can override the header
+                // mesh_size, so the same policy applies here.
                 this->mesh_changed = false;
-                if (pp.mesh % 2 == 0)
+                if (!this->preserve_mesh_ && pp.mesh % 2 == 0)
                 {
                     pp.mesh -= 1;
                     this->mesh_changed = true;

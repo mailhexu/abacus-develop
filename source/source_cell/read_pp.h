@@ -48,6 +48,20 @@ public:
     Pseudopot_upf();
 
     /**
+     * @brief Constructor with an explicit radial-mesh policy.
+     *
+     * @param preserve_full_mesh if true, an even UPF radial mesh is kept at
+     *        its full file size: the historical even-to-odd decrement in the
+     *        UPF100/UPF201 readers (and the trailing-number skips it drives)
+     *        is disabled, so r/rab/chi keep every source mesh point. Used by
+     *        the TB2J atomic-basis capture, which reads the complete
+     *        immutable UPF radial data and integrates even meshes with its
+     *        own parity-appropriate quadrature. The default constructor keeps
+     *        the truncating behavior of every existing caller.
+     */
+    explicit Pseudopot_upf(const bool preserve_full_mesh);
+
+    /**
      * @brief Destructor.
      */
     ~Pseudopot_upf();
@@ -140,7 +154,8 @@ public:
     void complete_default(Atom_pseudo& pp, const double pseudo_rcut);
 
   private:
-    bool mesh_changed = false; ///< if the mesh is even, it will be changed to odd
+    bool mesh_changed = false;  ///< if the mesh is even, it will be changed to odd
+    bool preserve_mesh_ = false; ///< opt-in: keep the full even UPF mesh (no even-to-odd trim)
 
     /**
      * @brief Skip the last number if the mesh is even.

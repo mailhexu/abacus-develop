@@ -124,6 +124,38 @@ AddTest(
   SOURCES bessel_basis_test.cpp ../module_bessel/bessel_basis.cpp
 )
 
+# TB2J immutable atomic basis (story 002): the shared source_cell pseudopotential
+# parser sources are compiled directly, mirroring MODULE_CELL_read_pp; the cell
+# test support dir provides mock_unitcell.cpp and the TB2J UPF fixtures.
+AddTest(
+  TARGET MODULE_IO_tb2j_atomic_basis
+  LIBS parameter base device planewave
+  SOURCES tb2j_atomic_basis_test.cpp
+    ../module_tb2j/atomic_projectors.cpp
+    ../module_tb2j/sha256.cpp
+    ../../source_psi/atomic_radial_transform.cpp
+    ../../source_cell/atom_pseudo.cpp
+    ../../source_cell/pseudo.cpp
+    ../../source_cell/read_pp.cpp
+    ../../source_cell/read_pp_complete.cpp
+    ../../source_cell/read_pp_upf201.cpp
+    ../../source_cell/read_pp_upf100.cpp
+    ../../source_cell/read_pp_vwr.cpp
+    ../../source_cell/read_pp_blps.cpp
+    ../../source_cell/atom_spec.cpp
+    ../../source_cell/test/support/mock_unitcell.cpp
+)
+
+file(COPY
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_even_mesh.upf
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_even_mesh_v1.upf
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_zero_norm.upf
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_fullrel.upf
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/fe_pbe_v1.5.uspp.F.UPF
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Al.pbe-sp-van-so.UPF
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/support
+)
+
 AddTest(
   TARGET MODULE_IO_output_log_test
   LIBS parameter base device

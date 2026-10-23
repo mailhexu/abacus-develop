@@ -1,4 +1,5 @@
 #include "psi_init_atomic.h"
+#include "atomic_radial_transform.h"
 #include "source_basis/module_pw/pw_basis_k.h"
 #include "source_cell/unitcell.h"
 #include "source_pw/module_pwdft/stru_fac.h"
@@ -6,7 +7,6 @@
 #include "source_base/math_integral.h" // for numerical integration
 #include "source_base/math_polyint.h" // for polynomial interpolation
 #include "source_base/math_ylmreal.h" // for real spherical harmonics
-#include "source_base/math_sphbes.h" // for spherical bessel functions
 #include "source_base/tool_quit.h"
 #include "source_base/timer.h"
 #include "source_base/global_variable.h"
@@ -112,6 +112,11 @@ void psi_init_atomic<T>::tabulate()
     const double pref = ModuleBase::FOUR_PI / sqrt(this->p_ucell_->omega);
     std::vector<double> aux(max_msh);
     std::vector<double> vchi(max_msh);
+    std::vector<double> qgrid(this->nqx_);
+    for (int iq = startq; iq < this->nqx_; iq++)
+    {
+        qgrid[iq] = this->dq_ * iq;
+    }
 
     ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"dq(describe PAO in reciprocal space)",this->dq_);
     ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"max q",this->nqx_);
@@ -216,19 +221,25 @@ void psi_init_atomic<T>::tabulate()
             }
 
             const int l = atom->ncpp.lchi[ic];
+            // MathDoc: tb2j-dev/qe-atomic-pao-trace
+            // Shared non-mutating radial mechanics with the TB2J atomic-basis
+            // capture. This caller keeps the native truncated msh choice and
+            // applies the cell-dependent pref here; the occupation filtering
+            // and chi normalization above are unchanged initializer policy.
+            // The helper is bit-identical to the previous inline body.
+            atomic_radial::transform_channel(atom->ncpp.msh,
+                                             atom->ncpp.r.data(),
+                                             atom->ncpp.rab.data(),
+                                             &atom->ncpp.chi(ic, 0),
+                                             l,
+                                             qgrid.data() + startq,
+                                             this->nqx_ - startq,
+                                             aux.data(),
+                                             vchi.data(),
+                                             &this->ovlp_pswfcjlq_(it, ic, startq));
             for (int iq = startq; iq < this->nqx_; iq++)
             {
-                const double q = this->dq_ * iq;
-                ModuleBase::Sphbes::Spherical_Bessel(atom->ncpp.msh, atom->ncpp.r.data(), q, l, aux.data());
-                for (int ir = 0; ir < atom->ncpp.msh; ir++)
-                {
-                    vchi[ir] = atom->ncpp.chi(ic, ir) * aux[ir] * atom->ncpp.r[ir];
-                }
-
-                double vqint = 0.0;
-                ModuleBase::Integral::Simpson_Integral(atom->ncpp.msh, vchi.data(), atom->ncpp.rab.data(), vqint);
-
-                this->ovlp_pswfcjlq_(it, ic, iq) = vqint * pref;
+                this->ovlp_pswfcjlq_(it, ic, iq) *= pref;
             }
         }
     }
