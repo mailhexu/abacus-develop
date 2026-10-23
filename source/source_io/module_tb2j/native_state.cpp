@@ -4,7 +4,6 @@
 #include "source_base/element_name.h"
 #include "source_base/global_variable.h"
 #include "source_base/module_parallel/para_band_output.h"
-#include "source_base/module_parallel/para_bridge.h"
 #include "source_base/parallel_common.h"
 #include "source_base/tool_quit.h"
 #include "source_cell/klist.h"
@@ -219,12 +218,14 @@ bool NativeState::finish(const double native_nelec, const std::array<double, 2>&
         }
     }
     custom_occupations = custom;
+    native_weight_sum = sum;
     finished_ = true;
     return true;
 }
 
 std::unique_ptr<NativeState> NativeState::capture(const UnitCell& ucell, const K_Vectors& kv,
-                                                const elecstate::ElecState& estate, const Input_para& input)
+                                                const elecstate::ElecState& estate, const Input_para& input,
+                                                const Parallel::ParaBandOutput& bands)
 try
 {
     std::string error;
@@ -294,7 +295,6 @@ try
 #endif
     if (bad_shape) error = "Native local spectral shape or global k/spin map is inconsistent";
     collective_error(error);
-    const Parallel::ParaBandOutput bands(local_bands, input.nbands, Parallel::make_band_world());
     ModuleBase::matrix gathered_energies, gathered_weighted;
     const ModuleBase::matrix* energies = &estate.ekb;
     const ModuleBase::matrix* weighted = &estate.wg;

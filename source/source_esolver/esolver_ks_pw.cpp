@@ -11,14 +11,8 @@
 // The unique_ptr member's destructor needs the complete type on every
 // configuration; the opt-in feature flag gates only the capture call.
 #include "source_io/module_tb2j/atomic_projectors.h"
-#include "source_io/module_tb2j/native_state.h"
 #ifdef __TB2J_PROJECTOR_NETCDF
-#include "source_io/module_tb2j/projection.h"
-#include <iostream>
-#include <stdexcept>
-#ifdef __MPI
-#include <mpi.h>
-#endif
+#include "source_io/module_tb2j/export.h"
 #endif
 #include "source_pw/module_pwdft/force_pw.h"
 #include "source_pw/module_pwdft/hamilt_pw.h"
@@ -593,25 +587,9 @@ void ESolver_KS_PW<T, Device>::after_all_runners(BaseCell& basecell)
         {
             ModuleBase::WARNING_QUIT("TB2J native state", "Projector export requires a converged SCF state");
         }
-        this->native_state_ = ModuleIO::Tb2j::NativeState::capture(ucell, this->kv, *this->pelec, *this->inp_);
-        if (GlobalV::MY_BNDGROUP == 0)
-        {
-            try
-            {
-                this->tb2j_delta_xc_ = ModuleIO::Tb2j::xc_difference(
-                    this->chr, ucell, *this->pw_rhod, *this->pw_rho, *this->pw_wfc);
-                if (GlobalV::MY_RANK == 0)
-                    GlobalV::ofs_running << " TB2J XC-only potential prepared from converged charge on native smooth FFT\n";
-            }
-            catch (const std::exception& error)
-            {
-                std::cerr << "TB2J native XC rank " << GlobalV::MY_RANK << ": " << error.what() << std::endl;
-#ifdef __MPI
-                MPI_Abort(MPI_COMM_WORLD, 1);
-#endif
-                throw;
-            }
-        }
+        ModuleIO::Tb2j::export_projector(
+            ucell, this->kv, *this->pelec, this->chr, *this->inp_, *this->atomic_basis_,
+            this->sf, *this->pw_wfc, *this->pw_rhod, *this->pw_rho, this->stp);
     }
 #endif
 

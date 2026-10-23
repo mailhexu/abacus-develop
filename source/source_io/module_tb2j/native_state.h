@@ -12,6 +12,7 @@ class K_Vectors;
 class UnitCell;
 struct Input_para;
 namespace elecstate { class ElecState; }
+namespace Parallel { class ParaBandOutput; }
 
 namespace ModuleIO
 {
@@ -51,13 +52,15 @@ class NativeState
 
     /// Collective, after converged SCF and before estate teardown. Non-root returns nullptr.
     static std::unique_ptr<NativeState> capture(const UnitCell& cell, const K_Vectors& kv,
-                                               const elecstate::ElecState& estate, const Input_para& input);
+                                               const elecstate::ElecState& estate, const Input_para& input,
+                                               const Parallel::ParaBandOutput& bands);
 
     GridRecipe recipe;
     int nkpt = 0;
     int nband = 0;
     std::vector<ModuleBase::Vector3<double>> kpoints;
     std::vector<double> weights;
+    double native_weight_sum = 0.0; ///< unique native up-spin sum, for identical per-pool normalization
     std::vector<double> eigenvalues; ///< spin,k,global-band; eV
     std::vector<double> occupations; ///< wg / corresponding native wk
     std::array<double, 2> efermi_spin{}; ///< eV, native two-Fermi state retained

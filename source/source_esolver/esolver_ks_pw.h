@@ -6,7 +6,6 @@
 #include "source_pw/module_pwdft/vsep_pw.h"
 
 #include <memory>
-#include <vector>
 #include <source_base/macros.h>
 
 namespace ModuleIO
@@ -14,7 +13,6 @@ namespace ModuleIO
 namespace Tb2j
 {
 class AtomicBasis;
-class NativeState;
 }
 } // namespace ModuleIO
 
@@ -72,11 +70,6 @@ class ESolver_KS_PW : public ESolver_KS
     // before the initial-guess mutates the pseudopotential data. Allocated
     // only inside the opt-in out_tb2j feature+flag; never touched otherwise.
     std::unique_ptr<ModuleIO::Tb2j::AtomicBasis> atomic_basis_;
-    // Certified spectral metadata lives only on the world-root writer.
-    std::unique_ptr<ModuleIO::Tb2j::NativeState> native_state_;
-    // Owned smooth-grid XC-only spin difference, prepared after convergence
-    // only on the vertex-owning band group. Native potentials stay untouched.
-    std::vector<double> tb2j_delta_xc_;
 };
 } // namespace ModuleESolver
 #endif

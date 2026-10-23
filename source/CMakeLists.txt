@@ -275,7 +275,7 @@ endif()
 # ------------------------------------------------------------------------------
 
 set(_abacus_feature_libs
-    $<$<BOOL:${ENABLE_JSON}>:nlohmann_json::nlohmann_json>
+    $<$<OR:$<BOOL:${ENABLE_JSON}>,$<BOOL:${ENABLE_TB2J_PROJECTOR_NETCDF}>>:nlohmann_json::nlohmann_json>
     $<$<BOOL:${ENABLE_ELPA}>:ELPA::ELPA>
     $<$<BOOL:${ENABLE_PEXSI}>:PEXSI::PEXSI>
     $<$<BOOL:${ENABLE_CNPY}>:cnpy>

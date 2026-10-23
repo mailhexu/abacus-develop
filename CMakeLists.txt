@@ -168,8 +168,8 @@ if(NOT DEFINED NVHPC_ROOT_DIR AND DEFINED ENV{NVHPC_ROOT})
       CACHE PATH "Path to NVIDIA HPC SDK root directory.")
 endif()
 
-# enable json support
-if(ENABLE_JSON)
+# JSON output and projector provenance share the existing JSON backend.
+if(ENABLE_JSON OR ENABLE_TB2J_PROJECTOR_NETCDF)
   find_package(nlohmann_json REQUIRED)
 endif()
 

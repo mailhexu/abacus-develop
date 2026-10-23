@@ -27,9 +27,12 @@ cmake -B build -DENABLE_LIBXC=ON
 
 `ENABLE_TB2J_PROJECTOR_NETCDF` is OFF by default. Enable it with
 `-DENABLE_TB2J_PROJECTOR_NETCDF=ON` to link the NetCDF C library with NetCDF-4
-group support. If the library is outside standard paths, use `CMAKE_PREFIX_PATH`
-or set `TB2J_NETCDF_INCLUDE_DIR` and `TB2J_NETCDF_C_LIBRARY` explicitly.
-Ordinary builds do not require NetCDF.
+group support and the existing nlohmann-json backend for file provenance.
+If libraries are outside standard paths, use `CMAKE_PREFIX_PATH`,
+`nlohmann_json_DIR`, or the explicit NetCDF settings
+`TB2J_NETCDF_INCLUDE_DIR` and `TB2J_NETCDF_C_LIBRARY`.
+`ENABLE_JSON` need not be enabled: ordinary JSON output remains independent.
+Ordinary builds do not require these exporter dependencies.
 
 The runtime input `out_tb2j` is disabled by default. An enabled request requires
 PW `ksdft`, two collinear spins (`nspin 2`), no U/SOC, scalar norm-conserving UPF
@@ -49,8 +52,7 @@ occupation filtering, normalization and `pseudo_mesh`/`pseudo_rcut` policies.
 Atomic-projector rows use the native real-harmonic index `l*l + m` with
 `m = 0..2*l`, the native structure factor and `(-i)^l` phase. The radial
 tables do not contain the cell-volume factor; `4*pi/sqrt(omega)` uses the current
-cell at PW filling. These build/basis checks do not establish a completed
-NetCDF export or agreement with ABINIT exchange results.
+cell at PW filling.
 
 After confirmed SCF convergence, the opt-in path certifies the original generated
 Gamma/Monkhorst-Pack recipe through the native generator. Both spin copies must
@@ -67,8 +69,8 @@ k-point pool transfers metadata to the world-root writer. Ordinary and custom
 then checked against native spin-resolved and total electron counts. Both
 native spin Fermi values are retained, including in two-Fermi calculations;
 the legacy scalar Fermi field is not substituted. Energy and geometry conversion
-use ABACUS's own source constants. These certification checks still do not
-constitute a completed projector NetCDF dataset or an ABINIT exchange benchmark.
+use ABACUS's own source constants. Certification does not establish agreement
+with ABINIT exchange results.
 
 The private projection kernels preserve raw primal atomic/KS overlaps and the
 full intersite Gram matrix; they do not pre-dualize or discard channels.
@@ -84,8 +86,27 @@ Native atomic PW coefficients already contain their volume normalization:
 their unscaled inverse-FFT fields use `1/nxyz` in potential matrix elements,
 not `omega/nxyz`. A constant potential therefore projects to that constant
 times the atomic Gram matrix. Site vertices retain the BZ-weighted onsite
-average over unique k points and convert native Ry to eV once. These numerical
-kernels are not yet a published NetCDF or cross-code exchange result.
+average over unique k points and convert native Ry to eV once.
+
+After convergence and collective ownership checks, physical k-point pools
+stream indexed coefficient/Gram blocks to one serial NetCDF writer.
+PW contributions are reduced within each native band group, then band columns
+are assembled with the native distributed-band map. One designated band group
+computes the Gram and XC vertex once per unique k, not once per spin or band
+group. CPU double-precision coefficients are read directly; other precision or
+device paths stage only the active one-k PW coefficients, not an all-k mirror.
+
+The final `<output directory>/tb2j_projector.nc` uses the existing
+`tb2j.projector_green` version `1.0` schema: physical geometry, certified spectra
+and occupations, all projector maps, raw primal coefficients, full k-dependent
+Gram, complete onsite `delta_total` in eV, and build/input/UPF provenance.
+No reader fork or precomputed Green arrays are required. A destination-sibling
+partial is closed successfully and renamed only after every unique k and onsite
+block has been written. Unconverged runs do not publish a new final dataset.
+An existing final file is not removed on failure; distinguish it from this run's
+publication in the run log. Streaming failures report rank/pool context and
+abort `MPI_COMM_WORLD` rather than waiting for blocked peers or publishing a
+fallback file.
 
 ## Build with ML-ALGO
 
