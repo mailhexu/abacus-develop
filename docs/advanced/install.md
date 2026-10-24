@@ -108,6 +108,113 @@ publication in the run log. Streaming failures report rank/pool context and
 abort `MPI_COMM_WORLD` rather than waiting for blocked peers or publishing a
 fallback file.
 
+An abrupt peer/world abort need not unwind the root writer's destructor:
+`tb2j_projector.nc.partial.*` siblings can survive. They are not published
+datasets and must never be passed to TB2J or manually renamed into the final
+name. Ordinary unwind cleanup removes only this writer's own partial; it never
+deletes an older final.
+
+### Running and consuming the PW export
+
+Add the build option above to an otherwise working native build, then build
+the exercised target:
+
+```bash
+cmake --build build --target abacus_basic_para -j
+```
+
+The verified CPU configuration used GNU 15.2, OpenMPI 5.0.8, Libxc 6.2.2,
+NetCDF C 4.9.3, FFTW3, Generic BLAS and nlohmann-json 3.12.0. On that host,
+`-DBLA_VENDOR=Generic -DMKLROOT= -DMKL_ROOT= -DENABLE_ELPA=OFF` avoided unrelated
+MKL/ELPA selection; FFTW include/library and `nlohmann_json_DIR` paths were
+supplied explicitly. Exact configure/build commands and dependency revision
+are retained in the companion TB2J_dev validation build manifest.
+
+Use a complete native SCF input/STRU/KPT for the intended material. The
+export-specific controls are:
+
+```text
+basis_type pw
+nspin 2
+symmetry -1
+out_tb2j 1
+```
+
+Do not substitute an explicit or pre-reduced k-point list: `symmetry -1` does
+not reconstruct missing points. Generated Gamma/MP recipe certification is
+required. Atomic projectors are the UPF atomic wavefunctions, not nonlocal
+beta projectors or the occupation-filtered native initial guess. All source
+channels and the full atomic Gram are retained.
+
+Run the native executable in the input directory. Serial, multiple PW ranks,
+multiple k pools and mixed `kpar`/`bndpar` layouts were exercised. After
+convergence, consume the final file with an installed TB2J version providing
+the dedicated PW command:
+
+```bash
+abacus_projector2J.py --input OUT.ABACUS/tb2j_projector.nc \
+    --output_path TB2J_results --elements Fe --Rcut 10 --nz 30 --smearing 0.05
+```
+
+Adjust `OUT.ABACUS` to the native output suffix. This is not `abacus2J.py`,
+which remains the separate LCAO workflow. The dedicated command uses the
+unchanged common engine with complete `delta_total`, projector populations
+and explicit inverse metric; `TB2J_GREEN_MODE` cannot override that selection.
+The inherited condition limit is `1e12`, without a pseudoinverse fallback.
+Distances are Angstrom; contour smearing is eV.
+
+The standard TB2J tree includes text, `TB2J.pickle`, structure, plotting and
+supported spin-code outputs. Use the serialized exchange dictionary for
+strict numerical comparisons; printed text has lower precision. Source and
+operator-basis metadata identify ABACUS NC-UPF, never GPAW PAW.
+
+### Verified scientific extent
+
+Matched one-atom bccFe used the same scalar Fe UPF as ABINIT, PBE, 5.42 Bohr,
+100 Ry, 24 bands, unshifted Gamma `7 7 7`, Gaussian 0.01 Ry, two spins and
+no U/SOC. BPCG, `scf_thr=1e-14`, `pw_diag_thr=1e-12`, iteration limits 200 and
+mixing 0.4 were fixed before launch. The three distinct frozen budgets are
+0.01 meV/shell for ABINIT replay, 0.10 meV/shell for ABACUS versus ABINIT,
+and 0.000001 meV/shell for same-binary serial/MPI reproducibility.
+All passed for the complete first three shells (8/6/12 pairs) through
+4.056 Angstrom; this is not a long-range or mesh-convergence claim.
+
+Requested `Rcut=10` is an output ceiling, not that scientific window.
+The common consumer additionally bounds images by the k-mesh supercell and
+warns about aliasing beyond it. The frozen ABINIT outer table has extra
+aliased images and is not reproduced as an extended-range target.
+
+Do not infer uniformly converged unoccupied bands from SCF or exchange
+agreement: the exercised finite-iteration BPCG runs show high, zero-occupation
+eigenvalue differences across layouts, documented separately from conserved
+occupations, full Gram/operator checks and the strict exchange budget.
+GPU staging has no runtime validation here; PAW/USPP, SOC, U, noncollinearity,
+meta-GGA/hybrid XC and explicit/reduced meshes are not supported by this path.
+
+The companion TB2J_dev Project keeps reproducible inputs/runners, raw native
+and consumer trees, hashes, full pair diagnostics, MPI/failure traces, actual
+disabled PW/LCAO checks and receipt-backed acceptance under
+`subprojects/abacus-plane-wave-upf-atomic-wavefunction-projector-exchange/validation/`.
+Its `README.md` links the original-reference, native, distributed and
+secondary-comparison records. Scientific evidence is distinct from file
+readability and from unit-test success.
+
+The secondary two-atom FM FeO check uses the same unmasked inverse exchange
+policy and matched PBE/100 Ry/24-band/Gamma7-cubed/Gaussian0.01 Ry physics.
+All 12 nearest Fe--Fe pair identities match; the mean is 7.72032253 meV
+against the pinned unmasked ABINIT value 7.7202 meV, not the differently
+masked 7.5753 meV ecosystem golden. No FeO acceptance tolerance is assigned,
+and this descriptive cross-check cannot waive a failed bccFe gate.
+
+Projector-population side metadata is not an electron-count partition shared
+by every interface: the generic consumer reports raw local projector traces
+when no population metric is supplied, whereas the ABINIT NC PAO adapter's
+`projector` mode uses a dual-basis Mulliken partition. Actual FeO displayed
+charges/moments differ for that reason; applying the existing dual helper to
+the same native data diagnoses the convention difference without replacing
+installed output. Electron conservation is checked from occupations/weights,
+not by forcing summed projector charges to the native electron count.
+
 ## Build with ML-ALGO
 
 If machine learning algorithms, including DeePKS and machine learning based kinetic energy density functional (ML-KEDF) for OFDFT, is required for DFT calculation, the following prerequisites and steps are needed:
