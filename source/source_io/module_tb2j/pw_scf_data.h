@@ -1,5 +1,5 @@
-#ifndef ABACUS_TB2J_NATIVE_STATE_H
-#define ABACUS_TB2J_NATIVE_STATE_H
+#ifndef ABACUS_TB2J_PW_SCF_DATA_H
+#define ABACUS_TB2J_PW_SCF_DATA_H
 
 #include "source_base/matrix.h"
 #include "source_base/vector3.h"
@@ -42,16 +42,16 @@ struct SpectralBlock
 };
 
 /// Private root-owned metadata; no KS coefficients or projected matrices live here.
-class NativeState
+class PwScfData
 {
   public:
-    static std::unique_ptr<NativeState> create(const GridRecipe& recipe, int nband, std::string& error);
+    static std::unique_ptr<PwScfData> create(const GridRecipe& recipe, int nband, std::string& error);
     bool append(const SpectralBlock& block, std::string& error);
     bool finish(double native_nelec, const std::array<double, 2>& fermi_ry,
                 bool custom, std::string& error);
 
     /// Collective, after converged SCF and before estate teardown. Non-root returns nullptr.
-    static std::unique_ptr<NativeState> capture(const UnitCell& cell, const K_Vectors& kv,
+    static std::unique_ptr<PwScfData> capture(const UnitCell& cell, const K_Vectors& kv,
                                                const elecstate::ElecState& estate, const Input_para& input,
                                                const Parallel::ParaBandOutput& bands);
 

@@ -124,16 +124,13 @@ AddTest(
   SOURCES bessel_basis_test.cpp ../module_bessel/bessel_basis.cpp
 )
 
-# TB2J immutable atomic basis (story 002): the shared source_cell pseudopotential
-# parser sources are compiled directly, mirroring MODULE_CELL_read_pp; the cell
-# test support dir provides mock_unitcell.cpp and the TB2J UPF fixtures.
+# TB2J atomic-basis mapping and PW-fill coverage. Compile the shared pseudopotential
+# reader sources directly, mirroring MODULE_CELL_read_pp.
 AddTest(
   TARGET MODULE_IO_tb2j_atomic_basis
   LIBS parameter base device planewave
   SOURCES tb2j_atomic_basis_test.cpp
-    ../module_tb2j/atomic_projectors.cpp
-    ../module_tb2j/sha256.cpp
-    ../../source_psi/atomic_radial_transform.cpp
+    ../module_tb2j/upf_atomic_projectors.cpp
     ../../source_cell/atom_pseudo.cpp
     ../../source_cell/pseudo.cpp
     ../../source_cell/read_pp.cpp
@@ -146,20 +143,10 @@ AddTest(
     ../../source_cell/test/support/mock_unitcell.cpp
 )
 
-file(COPY
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_even_mesh.upf
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_even_mesh_v1.upf
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_zero_norm.upf
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Fe_tb2j_fullrel.upf
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/fe_pbe_v1.5.uspp.F.UPF
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../source_cell/test/support/Al.pbe-sp-van-so.UPF
-    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/support
-)
-
 AddTest(
-  TARGET MODULE_IO_tb2j_native_state
+  TARGET MODULE_IO_tb2j_pw_scf_data
   LIBS parameter base device symmetry
-  SOURCES tb2j_native_state_test.cpp ../module_tb2j/native_state.cpp
+  SOURCES tb2j_pw_scf_data_test.cpp ../module_tb2j/pw_scf_data.cpp
     ../../source_cell/klist.cpp ../../source_cell/klist_io.cpp
     ../../source_cell/parallel_kpoints.cpp ../../source_cell/reciprocal_grid.cpp
     ../../source_cell/cif_io.cpp
@@ -168,7 +155,7 @@ AddTest(
 AddTest(
   TARGET MODULE_IO_tb2j_projection
   LIBS xc_ planewave parameter psi device container base
-  SOURCES tb2j_projection_test.cpp ../module_tb2j/projection.cpp
+  SOURCES tb2j_projection_test.cpp ../module_tb2j/pw_projector_kernels.cpp
 )
 if(ENABLE_LIBXC)
   target_link_libraries(MODULE_IO_tb2j_projection PRIVATE Libxc::xc)

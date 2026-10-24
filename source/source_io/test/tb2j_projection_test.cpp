@@ -1,4 +1,4 @@
-#include "../module_tb2j/projection.h"
+#include "../module_tb2j/pw_projector_kernels.h"
 #include "source_base/constants.h"
 #include "source_base/global_variable.h"
 #include "source_base/parallel_global.h"

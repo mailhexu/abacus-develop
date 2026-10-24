@@ -1,10 +1,9 @@
-#include "export.h"
-#include "atomic_projectors.h"
-#include "native_state.h"
-#include "projection.h"
+#include "export_to_tb2j.h"
+#include "upf_atomic_projectors.h"
+#include "pw_scf_data.h"
+#include "pw_projector_kernels.h"
 #include "projector_netcdf.h"
 #include "source_base/global_variable.h"
-#include "source_base/module_device/memory_op.h"
 #include "source_base/module_parallel/para_band_output.h"
 #include "source_base/module_parallel/para_bridge.h"
 #include "source_base/parallel_global.h"
@@ -104,90 +103,14 @@ void pool_reduce(Complex* values, const std::size_t size)
 #endif
 }
 
-struct HostBuffers
+const Complex* native_k(const Setup_Psi_pw& source, const int ik)
 {
-    std::vector<Complex> converted;
-#if defined(__CUDA) || defined(__ROCM)
-    std::vector<std::complex<float>> single;
-#endif
-};
-struct HostView
-{
-    const Complex* values;
-    int stride;
-};
-
-template<typename T, typename Device>
-const T* native_k(const Setup_Psi_pw& source, const int ik)
-{
-    const auto* psi = source.get_psi_t<T, Device>();
-    if (!psi) throw std::runtime_error("Missing native typed PW wavefunction");
+    const auto* psi = source.get_psi_t<Complex, base_device::DEVICE_CPU>();
+    if (!psi) throw std::runtime_error("Missing native CPU-double PW wavefunction");
     if (psi->get_nbands() == 0) return nullptr;
-    // No fix_k cursor mutation and no refresh of the whole CPU mirror.
+    // Alias native storage without changing its k cursor or copying coefficients.
     return psi->get_pointer() - psi->get_psi_bias()
            + static_cast<std::size_t>(ik) * psi->get_nbands() * psi->get_nbasis();
-}
-
-HostView cpu_double(const Setup_Psi_pw& source, const int ik, const int, HostBuffers&)
-{
-    return {native_k<Complex, base_device::DEVICE_CPU>(source, ik), source.get_nbasis()};
-}
-
-HostView cpu_single(const Setup_Psi_pw& source, const int ik, const int npw, HostBuffers& work)
-{
-    const auto* input = native_k<std::complex<float>, base_device::DEVICE_CPU>(source, ik);
-    work.converted.resize(static_cast<std::size_t>(source.get_nbands()) * npw);
-    for (int band = 0; band < source.get_nbands(); ++band)
-        base_device::memory::cast_memory_op<Complex, std::complex<float>,
-            base_device::DEVICE_CPU, base_device::DEVICE_CPU>()(
-                work.converted.data() + static_cast<std::size_t>(band) * npw,
-                input + static_cast<std::size_t>(band) * source.get_nbasis(), npw);
-    return {work.converted.data(), npw};
-}
-
-#if defined(__CUDA) || defined(__ROCM)
-HostView gpu_double(const Setup_Psi_pw& source, const int ik, const int npw, HostBuffers& work)
-{
-    const auto* input = native_k<Complex, base_device::DEVICE_GPU>(source, ik);
-    work.converted.resize(static_cast<std::size_t>(source.get_nbands()) * npw);
-    base_device::memory::synchronize_memory_2d_op<Complex,
-        base_device::DEVICE_CPU, base_device::DEVICE_GPU>()(
-            work.converted.data(), npw, input, source.get_nbasis(), npw, source.get_nbands());
-    return {work.converted.data(), npw};
-}
-
-HostView gpu_single(const Setup_Psi_pw& source, const int ik, const int npw, HostBuffers& work)
-{
-    const auto* input = native_k<std::complex<float>, base_device::DEVICE_GPU>(source, ik);
-    const auto size = static_cast<std::size_t>(source.get_nbands()) * npw;
-    work.single.resize(size);
-    work.converted.resize(size);
-    base_device::memory::synchronize_memory_2d_op<std::complex<float>,
-        base_device::DEVICE_CPU, base_device::DEVICE_GPU>()(
-            work.single.data(), npw, input, source.get_nbasis(), npw, source.get_nbands());
-    base_device::memory::cast_memory_op<Complex, std::complex<float>,
-        base_device::DEVICE_CPU, base_device::DEVICE_CPU>()(
-            work.converted.data(), work.single.data(), size);
-    return {work.converted.data(), npw};
-}
-#endif
-
-using Stage = HostView (*)(const Setup_Psi_pw&, int, int, HostBuffers&);
-Stage host_stage(const Setup_Psi_pw& source)
-{
-    if (source.get_device_type() == base_device::CpuDevice)
-    {
-        if (source.get_precision_type() == Setup_Psi_pw::PrecisionType::ComplexDouble) return cpu_double;
-        if (source.get_precision_type() == Setup_Psi_pw::PrecisionType::ComplexFloat) return cpu_single;
-    }
-#if defined(__CUDA) || defined(__ROCM)
-    if (source.get_device_type() == base_device::GpuDevice)
-    {
-        if (source.get_precision_type() == Setup_Psi_pw::PrecisionType::ComplexDouble) return gpu_double;
-        if (source.get_precision_type() == Setup_Psi_pw::PrecisionType::ComplexFloat) return gpu_single;
-    }
-#endif
-    throw std::runtime_error("Unsupported native PW device/precision for TB2J host staging");
 }
 
 struct KPair
@@ -196,17 +119,23 @@ struct KPair
 };
 } // namespace
 
-void export_projector(const UnitCell& cell, const K_Vectors& kv,
+void export_to_tb2j(const UnitCell& cell, const K_Vectors& kv,
                        const elecstate::ElecState& estate, const Charge& charge,
-                       const Input_para& input, const AtomicBasis& basis,
+                       const Input_para& input,
                        const Structure_Factor& sf, const ModulePW::PW_Basis_K& wfc,
                        ModulePW::PW_Basis& dense, ModulePW::PW_Basis& smooth,
                        const Setup_Psi_pw& wavefunctions)
 try
 {
+    if (wavefunctions.get_device_type() != base_device::CpuDevice
+        || wavefunctions.get_precision_type() != Setup_Psi_pw::PrecisionType::ComplexDouble)
+        throw std::runtime_error("out_tb2j supports CPU complex-double PW wavefunctions only");
+    const auto atomic_basis = AtomicBasis::capture(cell, input.pseudo_dir,
+                                                  PARAM.globalv.nqx, PARAM.globalv.dq);
+    const auto& basis = *atomic_basis;
     const auto band_world = Parallel::make_band_world();
     const Parallel::ParaBandOutput bands(PARAM.globalv.nbands_l, input.nbands, band_world);
-    auto state = NativeState::capture(cell, kv, estate, input, bands);
+    auto state = PwScfData::capture(cell, kv, estate, input, bands);
     const int nkpt = kv.get_nkstot() / 2;
     const int nproj = basis.nproj();
     const auto sites = atomic_sites(basis);
@@ -255,7 +184,6 @@ try
     const bool vertex_group = GlobalV::MY_BNDGROUP == 0;
     const bool distributed = !bands.bands_are_replicated();
     const bool active = vertex_group || distributed;
-    const Stage stage = host_stage(wavefunctions);
     if (!wavefunctions.psi_cpu || !wavefunctions.psi_cpu->get_k_first() || !wfc.npwk
         || wfc.npwk_max < 0 || wavefunctions.get_nk() != kv.get_nks()
         || wavefunctions.get_nbands() != bands.local_nbands() || wavefunctions.get_nbasis() < wfc.npwk_max
@@ -344,7 +272,6 @@ try
     }
     AtomicBasis::FillWorkspace fill_work;
     ProjectionWorkspace projection_work;
-    HostBuffers host_work;
     std::vector<Complex> phi, local_coefficients, coefficients, gram, vertex, accumulated, band_row;
     if (active && !pairs.empty())
     {
@@ -400,8 +327,9 @@ try
                         : local_coefficients.data();
                     if (bands.local_nbands() > 0 && npw > 0)
                     {
-                        const HostView view = stage(wavefunctions,spin==0?pair.up:pair.down,npw,host_work);
-                        primal_overlaps(bands.local_nbands(),nproj,npw,view.values,view.stride,phi.data(),stride,local);
+                        const auto* values = native_k(wavefunctions, spin == 0 ? pair.up : pair.down);
+                        primal_overlaps(bands.local_nbands(), nproj, npw, values,
+                                        wavefunctions.get_nbasis(), phi.data(), stride, local);
                     }
                     else
                         primal_overlaps(bands.local_nbands(),nproj,0,nullptr,0,nullptr,0,local);

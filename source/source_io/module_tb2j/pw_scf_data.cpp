@@ -1,4 +1,4 @@
-#include "native_state.h"
+#include "pw_scf_data.h"
 
 #include "source_base/constants.h"
 #include "source_base/element_name.h"
@@ -43,7 +43,7 @@ void collective_error(std::string& error)
 }
 }
 
-std::unique_ptr<NativeState> NativeState::create(const GridRecipe& source, const int bands, std::string& error)
+std::unique_ptr<PwScfData> PwScfData::create(const GridRecipe& source, const int bands, std::string& error)
 {
     error.clear();
     if (!source.generated || source.input_count != 0 || source.symmetry != -1)
@@ -83,7 +83,7 @@ std::unique_ptr<NativeState> NativeState::create(const GridRecipe& source, const
         error = "Native generator returned an inconsistent expected point count";
         return nullptr;
     }
-    auto state = std::unique_ptr<NativeState>(new NativeState);
+    auto state = std::unique_ptr<PwScfData>(new PwScfData);
     state->recipe = source;
     state->nkpt = count;
     state->nband = bands;
@@ -96,7 +96,7 @@ std::unique_ptr<NativeState> NativeState::create(const GridRecipe& source, const
     return state;
 }
 
-bool NativeState::append(const SpectralBlock& block, std::string& error)
+bool PwScfData::append(const SpectralBlock& block, std::string& error)
 {
     if (finished_ || block.nrow < 0 || !block.energies_ry || !block.weighted_occupations
         || (block.nrow > 0 && (!block.global_k || !block.spin || !block.kpoints || !block.weights))
@@ -160,7 +160,7 @@ bool NativeState::append(const SpectralBlock& block, std::string& error)
     return true;
 }
 
-bool NativeState::finish(const double native_nelec, const std::array<double, 2>& fermi_ry,
+bool PwScfData::finish(const double native_nelec, const std::array<double, 2>& fermi_ry,
                          const bool custom, std::string& error)
 {
     if (finished_ || std::find(seen_.begin(), seen_.end(), 0) != seen_.end())
@@ -223,13 +223,13 @@ bool NativeState::finish(const double native_nelec, const std::array<double, 2>&
     return true;
 }
 
-std::unique_ptr<NativeState> NativeState::capture(const UnitCell& ucell, const K_Vectors& kv,
+std::unique_ptr<PwScfData> PwScfData::capture(const UnitCell& ucell, const K_Vectors& kv,
                                                 const elecstate::ElecState& estate, const Input_para& input,
                                                 const Parallel::ParaBandOutput& bands)
 try
 {
     std::string error;
-    std::unique_ptr<NativeState> result;
+    std::unique_ptr<PwScfData> result;
     if (GlobalV::MY_RANK == 0)
     {
         GridRecipe source;

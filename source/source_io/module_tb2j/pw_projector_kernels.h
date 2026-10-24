@@ -1,5 +1,5 @@
-#ifndef ABACUS_TB2J_PROJECTION_H
-#define ABACUS_TB2J_PROJECTION_H
+#ifndef ABACUS_TB2J_PW_PROJECTOR_KERNELS_H
+#define ABACUS_TB2J_PW_PROJECTOR_KERNELS_H
 
 #include <complex>
 #include <cstddef>

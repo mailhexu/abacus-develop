@@ -118,14 +118,14 @@ if(ENABLE_LCAO)
   endif()
 endif()
 
-# Private complete atomic-projector producer, compiled only on opt-in builds.
-if(ENABLE_TB2J_PROJECTOR_NETCDF)
+# Private complete atomic-projector producer, compiled only when optional
+# NetCDF-4 support is available.
+if(TB2J_PROJECTOR_NETCDF_AVAILABLE)
   list(APPEND objects
-      module_tb2j/sha256.cpp
-      module_tb2j/atomic_projectors.cpp
-      module_tb2j/native_state.cpp
-      module_tb2j/projection.cpp
-      module_tb2j/export.cpp
+      module_tb2j/upf_atomic_projectors.cpp
+      module_tb2j/pw_scf_data.cpp
+      module_tb2j/pw_projector_kernels.cpp
+      module_tb2j/export_to_tb2j.cpp
       module_tb2j/projector_netcdf.cpp
   )
 endif()

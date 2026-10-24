@@ -1,5 +1,5 @@
-#include "projection.h"
-#include "atomic_projectors.h"
+#include "pw_projector_kernels.h"
+#include "upf_atomic_projectors.h"
 #include "source_base/constants.h"
 #include "source_base/module_external/blas_connector.h"
 #include "source_base/module_external/lapack_connector.h"
@@ -85,12 +85,11 @@ void full_gram(const int nproj, const int npw, const std::complex<double>* phi,
         std::fill_n(gram,static_cast<std::size_t>(nproj)*nproj,std::complex<double>{});
         return;
     }
-    const char upper='U', conjugate='C';
     const double one=1., zero=0.;
-    // Row-major phi[P,G] is column-major phi^T[G,P]. HERK computes
-    // <phi_p|phi_q> in its column-major upper triangle. Repack in place,
-    // computing only one triangle rather than doing two full GEMMs.
-    zherk_(&upper,&conjugate,&nproj,&npw,&one,phi,&phi_stride,&zero,gram,&nproj);
+    // The row-major connector maps (L,N) to Fortran HERK(U,C).
+    // Row-major phi[P,G] is column-major phi^T[G,P]; the resulting
+    // covariant upper triangle occupies our lower triangle. Repack in place.
+    LapackConnector::herk('L','N',nproj,npw,one,phi,phi_stride,zero,gram,nproj);
     for (int p=0; p<nproj; ++p)
         for (int q=p+1; q<nproj; ++q)
         {
@@ -208,8 +207,8 @@ void project_site_xc(const int ik, const ModulePW::PW_Basis_K& pw,
                 work.weighted[ir]=delta_v_ry[ir]*work.real[static_cast<std::size_t>(q)*pw.nrxx+ir];
             const int columns=q+1;
             if (pw.nrxx > 0)
-                zgemv_(&conjugate,&pw.nrxx,&columns,&alpha,work.real.data(),&pw.nrxx,
-                         work.weighted.data(),&one_index,&zero,work.column.data(),&one_index);
+                BlasConnector::gemv(conjugate,pw.nrxx,columns,alpha,work.real.data(),pw.nrxx,
+                                    work.weighted.data(),one_index,zero,work.column.data(),one_index);
             else
                 std::fill_n(work.column.data(),columns,std::complex<double>{});
             for (int p=0; p<=q; ++p)

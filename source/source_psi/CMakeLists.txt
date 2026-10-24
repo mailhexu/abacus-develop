@@ -22,7 +22,6 @@ add_library(
   psi_init_atom_rand.cpp
   psi_init_nao.cpp
   psi_init_nao_random.cpp
-  atomic_radial_transform.cpp
 )
 
 

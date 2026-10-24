@@ -1,10 +1,9 @@
-#include "atomic_projectors.h"
-
-#include "sha256.h"
-#include "source_psi/atomic_radial_transform.h"
+#include "upf_atomic_projectors.h"
 
 #include "source_base/constants.h"
 #include "source_base/global_variable.h"
+#include "source_base/math_integral.h"
+#include "source_base/math_sphbes.h"
 #include "source_base/math_polyint.h"
 #include "source_base/math_ylmreal.h"
 #include "source_base/parallel_common.h"
@@ -14,12 +13,63 @@
 #include "source_cell/unitcell.h"
 #include "source_pw/module_pwdft/stru_fac.h"
 
+#include <cassert>
 #include <cmath>
 
 namespace ModuleIO
 {
 namespace Tb2j
 {
+
+namespace
+{
+// MathDoc: tb2j-dev/qe-atomic-pao-trace
+// Odd meshes use the native UPF measure directly; even meshes apply its
+// pointwise factors before the existing composite Simpson rule.
+double integrate_measure(const int mesh, double* integrand, const double* rab)
+{
+    if (mesh % 2 == 1)
+    {
+        double sum = 0.0;
+        ModuleBase::Integral::Simpson_Integral(mesh, integrand, rab, sum);
+        return sum;
+    }
+    for (int ir = 0; ir < mesh; ++ir)
+    {
+        integrand[ir] *= rab[ir];
+    }
+    return ModuleBase::Integral::simpson(mesh, integrand, 1.0);
+}
+
+// MathDoc: tb2j-dev/qe-atomic-pao-trace
+// Transform one complete radial channel with the native spherical-Bessel and
+// integration primitives on the immutable source mesh.
+void transform_channel(const int mesh,
+                       const double* r,
+                       const double* rab,
+                       const double* chi,
+                       const int l,
+                       const double* q,
+                       const int nq,
+                       double* bessel,
+                       double* integrand,
+                       double* table)
+{
+    assert(mesh > 0);
+    assert(l >= 0);
+    assert(nq >= 0);
+
+    for (int iq = 0; iq < nq; ++iq)
+    {
+        ModuleBase::Sphbes::Spherical_Bessel(mesh, r, q[iq], l, bessel);
+        for (int ir = 0; ir < mesh; ++ir)
+        {
+            integrand[ir] = chi[ir] * bessel[ir] * r[ir];
+        }
+        table[iq] = integrate_measure(mesh, integrand, rab);
+    }
+}
+} // namespace
 
 std::unique_ptr<SpeciesBasis> AtomicBasis::capture_species(const std::string& filename,
                                                            const std::string& label,
@@ -54,17 +104,10 @@ std::unique_ptr<SpeciesBasis> AtomicBasis::capture_species(const std::string& fi
             return nullptr;
         }
     }
-    const std::string file_hash = sha256_file_hex(filename);
-    if (file_hash.empty())
-    {
-        error = "Atomic projectors require a readable UPF pseudopotential";
-        return nullptr;
-    }
-
     auto snapshot = std::make_unique<SpeciesBasis>();
+
     snapshot->label = label;
     snapshot->pseudo_file = filename;
-    snapshot->sha256 = file_hash;
     snapshot->mesh = original.mesh;
     snapshot->r = original.r;   // immutable full-mesh copies
     snapshot->rab = original.rab;
@@ -87,7 +130,7 @@ std::unique_ptr<SpeciesBasis> AtomicBasis::capture_species(const std::string& fi
         // Atom_pseudo data stay untouched.
         // The work buffer holds chi squared; the even-mesh measure weighting
         // can reuse it in place without allocating another mesh-sized array.
-        const double norm2 = atomic_radial::integrate_measure(original.mesh, work.data(), original.rab.data());
+        const double norm2 = integrate_measure(original.mesh, work.data(), original.rab.data());
         if (!std::isfinite(norm2) || norm2 <= 0.0)
         {
             error = "Atomic-wavefunction channel has an invalid radial norm";
@@ -108,8 +151,8 @@ std::unique_ptr<AtomicBasis> AtomicBasis::capture(const UnitCell& ucell,
                                                   const double dq)
 {
     // Native rank-zero-only pseudopotential IO policy: only the root rank
-    // reads the original UPF files and hashes their raw bytes once per
-    // species; errors are broadcast and every rank quits uniformly.
+    // reads and validates each original UPF once per species; errors are
+    // broadcast and every rank quits uniformly.
     std::string error_message;
     std::vector<SpeciesBasis> species;
     if (GlobalV::MY_RANK == 0)
@@ -142,7 +185,6 @@ std::unique_ptr<AtomicBasis> AtomicBasis::capture(const UnitCell& ucell,
     {
         Parallel_Common::bcast_string(sp.label);
         Parallel_Common::bcast_string(sp.pseudo_file);
-        Parallel_Common::bcast_string(sp.sha256);
         Parallel_Common::bcast_int(sp.natoms);
         Parallel_Common::bcast_int(sp.mesh);
         sp.r.resize(sp.mesh);
@@ -217,16 +259,16 @@ void AtomicBasis::tabulate()
         for (auto& channel : sp.channels)
         {
             channel.table.resize(nqx_);
-            atomic_radial::transform_channel(sp.mesh,
-                                             sp.r.data(),
-                                             sp.rab.data(),
-                                             channel.chi.data(),
-                                             channel.l,
-                                             q.data(),
-                                             nqx_,
-                                             bessel.data(),
-                                             integrand.data(),
-                                             channel.table.data());
+            transform_channel(sp.mesh,
+                              sp.r.data(),
+                              sp.rab.data(),
+                              channel.chi.data(),
+                              channel.l,
+                              q.data(),
+                              nqx_,
+                              bessel.data(),
+                              integrand.data(),
+                              channel.table.data());
         }
     }
 }

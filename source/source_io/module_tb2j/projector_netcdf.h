@@ -1,7 +1,7 @@
 #ifndef ABACUS_TB2J_PROJECTOR_NETCDF_H
 #define ABACUS_TB2J_PROJECTOR_NETCDF_H
 
-#include "projection.h"
+#include "pw_projector_kernels.h"
 #include <complex>
 #include <string>
 #include <vector>
@@ -12,7 +12,7 @@ namespace ModuleIO
 namespace Tb2j
 {
 class AtomicBasis;
-class NativeState;
+class PwScfData;
 
 /// One serial root writer for the existing tb2j.projector_green/1.0 contract.
 /// A unique destination-sibling partial becomes final only after full coverage,
@@ -21,7 +21,7 @@ class NativeState;
 class ProjectorNetcdf
 {
   public:
-    ProjectorNetcdf(const std::string& destination, const NativeState& state,
+    ProjectorNetcdf(const std::string& destination, const PwScfData& state,
                     const AtomicBasis& basis, const std::vector<SiteBlock>& sites,
                     const Input_para& input);
     ~ProjectorNetcdf();
@@ -36,7 +36,7 @@ class ProjectorNetcdf
 
   private:
     void cleanup() noexcept;
-    const NativeState& state_;
+    const PwScfData& state_;
     const AtomicBasis& basis_;
     const std::vector<SiteBlock>& sites_;
     std::string destination_, partial_;

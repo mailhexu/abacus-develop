@@ -1,15 +1,11 @@
 #include "projector_netcdf.h"
 
-#include "atomic_projectors.h"
-#include "build_info.h"
-#include "native_state.h"
+#include "upf_atomic_projectors.h"
+#include "pw_scf_data.h"
+#include "pw_projector_kernels.h"
 #include "source_hamilt/module_xc/xc_functional.h"
 #include "source_io/module_parameter/input_parameter.h"
 #include "source_main/version.h"
-
-#ifdef COMMIT_INFO
-#include "commit.h"
-#endif
 
 #include <netcdf.h>
 #include <nlohmann/json.hpp>
@@ -42,6 +38,27 @@ static_assert(sizeof(std::complex<double>) == 2 * sizeof(double),
               "TB2J NetCDF export relies on the standard complex-double layout");
 
 constexpr double kHermitianTolerance = 1e-10; // module convention (metric_condition)
+
+const char* func_type_meaning(const int func_type)
+{
+    switch (func_type)
+    {
+    case 0:
+        return "none";
+    case 1:
+        return "lda";
+    case 2:
+        return "gga";
+    case 3:
+        return "mgga";
+    case 4:
+        return "hybrid lda/gga";
+    case 5:
+        return "hybrid mgga";
+    default:
+        return "unknown";
+    }
+}
 
 void check(const int status, const std::string& what)
 {
@@ -161,29 +178,9 @@ std::string make_partial(const std::string& destination)
     return std::string(buffer.data());
 }
 
-const char* func_type_meaning(const int func_type)
-{
-    switch (func_type)
-    {
-    case 0:
-        return "none";
-    case 1:
-        return "lda";
-    case 2:
-        return "gga";
-    case 3:
-        return "mgga";
-    case 4:
-        return "hybrid lda/gga";
-    case 5:
-        return "hybrid mgga";
-    default:
-        return "unknown";
-    }
-}
 } // namespace
 
-ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeState& state,
+ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const PwScfData& state,
                                  const AtomicBasis& basis, const std::vector<SiteBlock>& sites,
                                  const Input_para& input)
     : state_(state), basis_(basis), sites_(sites), destination_(destination)
@@ -202,31 +199,31 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
             || state_.eigenvalues.size() != static_cast<std::size_t>(2) * nkpt * nband
             || state_.occupations.size() != state_.eigenvalues.size())
         {
-            throw std::runtime_error("Invalid certified TB2J projector dataset dimensions");
+            throw std::runtime_error("Invalid TB2J projector dataset dimensions");
         }
         for (const double weight : state_.weights)
         {
             if (!std::isfinite(weight) || weight <= 0.0)
             {
-                throw std::runtime_error("Certified TB2J unique-k weights must be finite and positive");
+                throw std::runtime_error("TB2J unique-k weights must be finite and positive");
             }
         }
         if (std::abs(std::accumulate(state_.weights.begin(), state_.weights.end(), 0.0) - 1.0) > 1e-12)
         {
-            throw std::runtime_error("Certified TB2J unique-k weights do not sum to one");
+            throw std::runtime_error("TB2J unique-k weights do not sum to one");
         }
         for (const double value : state_.efermi_spin)
         {
             if (!std::isfinite(value))
             {
-                throw std::runtime_error("Certified TB2J Fermi data is nonfinite");
+                throw std::runtime_error("TB2J Fermi data is nonfinite");
             }
         }
         for (const double value : state_.cell)
         {
             if (!std::isfinite(value))
             {
-                throw std::runtime_error("Certified TB2J lattice is nonfinite");
+                throw std::runtime_error("TB2J lattice is nonfinite");
             }
         }
         const auto expected = atomic_sites(basis_);
@@ -236,12 +233,12 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
                           { return a.first == b.first && a.count == b.count && a.offset == b.offset; });
         if (!same_blocks || sites_.empty())
         {
-            throw std::runtime_error("TB2J site blocks disagree with the immutable atomic basis");
+            throw std::runtime_error("TB2J site blocks disagree with the UPF atomic basis");
         }
         const std::size_t nat = sites_.size();
         if (state_.positions.size() != nat || state_.atomic_numbers.size() != nat)
         {
-            throw std::runtime_error("TB2J site count and captured physical geometry disagree");
+            throw std::runtime_error("TB2J site count and native geometry disagree");
         }
         std::size_t species_atoms = 0;
         for (int it = 0; it < basis_.ntype(); ++it)
@@ -313,7 +310,7 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
             throw std::runtime_error("TB2J harmonic map does not cover every projector row exactly once");
         }
 
-        // ---- provenance: existing nlohmann backend, ordered for determinism ----
+        // ---- source, channel, metric and operator metadata ----
         nlohmann::ordered_json meta;
         meta["source_code"] = "abacus";
         meta["producer"] = "ABACUS plane-wave UPF atomic-wavefunction projector exporter";
@@ -322,20 +319,9 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
 #else
         meta["source_version"] = "unknown";
 #endif
-#ifdef COMMIT_INFO
-        meta["source_commit"] = std::string(COMMIT);
-        meta["source_commit_scope"] = "configured build revision; no full worktree dirty digest exists";
-#else
-        meta["source_commit"] = "unknown";
-#endif
-        meta["build"] = {{"platform", std::string(ABACUS_PLATFORM_NAME)},
-                         {"build_type", std::string(ABACUS_BUILD_TYPE)},
-                         {"cxx_compiler", std::string(ABACUS_CXX_COMPILER_ID) + " "
-                                              + std::string(ABACUS_CXX_COMPILER_VERSION)},
-                         {"cxx_flags", std::string(ABACUS_CXX_FLAGS)},
-                         {"mpi_implementation", std::string(ABACUS_MPI_IMPLEMENTATION)}};
         meta["operator_basis"] = "norm_conserving_pao";
-        meta["source_basis"] = "explicit UPF atomic wavefunctions (no PAW, no beta projectors)";
+        meta["source_basis"] =
+            "all-channel UPF atomic wavefunctions (no PAW augmentation or beta projectors)";
         meta["units"] = {{"cell", "Angstrom"},
                          {"positions", "Angstrom"},
                          {"eigenvalues", "eV"},
@@ -386,16 +372,15 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
             {"actual_func_type_meaning", func_type_meaning(XC_Functional::get_func_type())},
             {"libxc_func_ids", XC_Functional::get_func_id()}};
         meta["coefficient_definition"] =
-            "raw primal projection C[spin,k,band,p] = <phi_p|psi_band> against the native UPF "
-            "atomic-wavefunction PW fill (real harmonics lm = l*l + m with m = 0..2l, radial phase "
-            "pow(-i,l)); never dualized";
+            "raw primal projection C[spin,k,band,p] = <phi_p|psi_band> against all-channel "
+            "UPF atomic-wavefunction PW fill (real harmonics lm = l*l + m with m = 0..2l, "
+            "radial phase pow(-i,l)); never dualized";
         meta["overlap_metric_policy"] =
             "raw covariant full projector overlap stored per k; the consumer applies the inverse "
             "metric with the inherited condition limit 1e12 (producer-side guard 1e12)";
         meta["operator_scope"] =
-            "complete onsite R=0 BZ-weighted XC-only spin-difference vertex for every atom "
-            "(v_xc_up - v_xc_dn from native reevaluation of the converged charge); no "
-            "Hubbard/U/SOC contribution";
+            "complete onsite R=0 full-BZ-weighted XC-only spin-difference vertex for every atom, "
+            "from native reevaluation of the converged charge; no Hubbard/U/SOC contribution";
         nlohmann::ordered_json species_meta = nlohmann::ordered_json::array();
         for (int it = 0; it < basis_.ntype(); ++it)
         {
@@ -403,14 +388,15 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
             nlohmann::ordered_json entry;
             entry["label"] = sp.label;
             entry["pseudo_file"] = sp.pseudo_file;
-            entry["sha256"] = sp.sha256;
             entry["natoms"] = sp.natoms;
             entry["mesh"] = sp.mesh;
             nlohmann::ordered_json channel_meta = nlohmann::ordered_json::array();
-            for (const AtomicChannel& channel : sp.channels)
+            for (std::size_t radial = 0; radial < sp.channels.size(); ++radial)
             {
+                const AtomicChannel& channel = sp.channels[radial];
                 nlohmann::ordered_json item;
                 item["label"] = channel.label;
+                item["radial_channel"] = radial;
                 item["l"] = channel.l;
                 item["occupation"] = channel.occupation;
                 channel_meta.push_back(item);
@@ -532,7 +518,7 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
                                                  [](const double value) { return std::isfinite(value); });
         if (!finite_spectrum)
         {
-            throw std::runtime_error("Nonfinite certified TB2J eigenvalues");
+            throw std::runtime_error("Nonfinite TB2J eigenvalues");
         }
         check(nc_put_var_double(bands, eigen_var, state_.eigenvalues.data()),
               "writing bands/eigenvalues");
@@ -541,7 +527,7 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const NativeSta
                                                     [](const double value) { return std::isfinite(value); });
         if (!finite_occupations)
         {
-            throw std::runtime_error("Nonfinite certified TB2J occupations");
+            throw std::runtime_error("Nonfinite TB2J occupations");
         }
         check(nc_put_var_double(bands, occ_var, state_.occupations.data()),
               "writing bands/occupations");

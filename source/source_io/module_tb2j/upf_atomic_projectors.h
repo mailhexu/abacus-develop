@@ -1,5 +1,5 @@
-#ifndef ABACUS_TB2J_ATOMIC_PROJECTORS_H
-#define ABACUS_TB2J_ATOMIC_PROJECTORS_H
+#ifndef ABACUS_TB2J_UPF_ATOMIC_PROJECTORS_H
+#define ABACUS_TB2J_UPF_ATOMIC_PROJECTORS_H
 
 #include "source_base/matrix.h"
 #include "source_base/vector3.h"
@@ -27,7 +27,7 @@ namespace Tb2j
 /// pseudopotentials only (no USPP/PAW/SOC/fully-relativistic), with complete
 /// chi/r/rab/lchi arrays and a finite, nonzero per-channel square sum.
 /// Returns nullptr when the basis is usable, otherwise a static error text.
-inline const char* atomic_channel_error(const Atom_pseudo& pp, const bool fully_relativistic = false)
+inline const char* atomic_channel_error(const Atom_pseudo& pp, const bool fully_relativistic)
 {
     if (pp.tvanp || pp.pp_type != "NC" || pp.has_so || fully_relativistic)
     {
@@ -67,12 +67,11 @@ struct AtomicChannel
     std::vector<double> table; ///< cell-independent q-space transform, [nqx]
 };
 
-/// One species' immutable full-mesh radial basis plus raw-file provenance.
+/// One species' immutable full-mesh radial basis and source identity.
 struct SpeciesBasis
 {
     std::string label;       ///< species label
     std::string pseudo_file; ///< source UPF filename (as referenced)
-    std::string sha256;      ///< SHA256 of the raw source UPF bytes
     int natoms = 0;          ///< number of atoms of this species in the cell
     int mesh = 0;            ///< full UPF mesh (even meshes preserved)
     std::vector<double> r;   ///< full UPF radial grid [mesh]
@@ -95,18 +94,17 @@ struct ProjectorSite
 
 /**
  * @brief Immutable all-channel atomic basis captured from the original UPF
- * files before the native initial-guess mutates the pseudopotential data
- * (opt-in, out_tb2j only).
+ * files after confirmed SCF, independently of mutated native pseudopotential
+ * arrays (local to the opt-in out_tb2j export call).
  *
  * MathDoc: tb2j-dev/qe-atomic-pao-trace
  *
  * The capture keeps the complete UPF r/rab/mesh (preserve-mesh parse), ALL
  * source channels in source order (including repeated-l and zero/negative
- * occupations), normalizes each channel on the full mesh, hashes the raw
- * source bytes (SHA256 provenance) and tabulates cell-independent q-space
- * transforms on the native nqx/dq grid. fill_pw reproduces the native
- * psi_init_atomic collinear conventions for every channel, applying
- * 4pi/sqrt(omega) from the CURRENT cell at fill time.
+ * occupations), normalizes each channel on the full mesh, and tabulates
+ * cell-independent q-space transforms on the native nqx/dq grid. fill_pw
+ * reproduces the native psi_init_atomic collinear conventions for every
+ * channel, applying 4pi/sqrt(omega) from the CURRENT cell at fill time.
  */
 class AtomicBasis
 {
@@ -123,8 +121,8 @@ class AtomicBasis
     /**
      * @brief Capture every species' original UPF basis (root-only IO).
      *
-     * Root parses each ucell.pseudo_fn in preserve-mesh mode, validates and
-     * hashes it; errors are broadcast and every rank quits uniformly with the
+     * Root parses each ucell.pseudo_fn in preserve-mesh mode and validates it;
+     * errors are broadcast and every rank quits uniformly with the
      * native pseudopotential IO policy. The immutable snapshots are
      * broadcast so every rank tabulates its own local q tables. Allocates
      * only when called (call under the opt-in flag).
@@ -142,7 +140,7 @@ class AtomicBasis
     /**
      * @brief Root-only capture of one original UPF into an immutable
      * snapshot: preserve-mesh parse, channel validation, full-mesh
-     * normalization, raw-byte SHA256. No broadcast inside; pure given the
+     * normalization. No broadcast inside; pure given the
      * file.
      * @param filename UPF file to read
      * @param label species label recorded in the snapshot
@@ -203,7 +201,7 @@ class AtomicBasis
      * @return nullptr on success, otherwise a static diagnostic. On failure
      * output is untouched; the caller must propagate the error collectively.
      */
-    [[nodiscard]] const char* fill_pw(const int ik,
+    const char* fill_pw(const int ik,
                  const UnitCell& ucell,
                  const Structure_Factor& sf,
                  const ModulePW::PW_Basis_K* pw_wfc,
@@ -224,4 +222,4 @@ class AtomicBasis
 } // namespace Tb2j
 } // namespace ModuleIO
 
-#endif // ABACUS_TB2J_ATOMIC_PROJECTORS_H
+#endif // ABACUS_TB2J_UPF_ATOMIC_PROJECTORS_H

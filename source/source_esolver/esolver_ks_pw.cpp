@@ -8,11 +8,8 @@
 #include "source_hsolver/diago_params.h"
 #include "source_hsolver/hsolver_pw.h"
 #include "source_io/module_parameter/parameter.h"
-// The unique_ptr member's destructor needs the complete type on every
-// configuration; the opt-in feature flag gates only the capture call.
-#include "source_io/module_tb2j/atomic_projectors.h"
 #ifdef __TB2J_PROJECTOR_NETCDF
-#include "source_io/module_tb2j/export.h"
+#include "source_io/module_tb2j/export_to_tb2j.h"
 #endif
 #include "source_pw/module_pwdft/force_pw.h"
 #include "source_pw/module_pwdft/hamilt_pw.h"
@@ -106,20 +103,6 @@ void ESolver_KS_PW<T, Device>::before_all_runners(BaseCell& basecell, const Inpu
                                this->pw_big,
                                this->solvent,
                                inp);
-#ifdef __TB2J_PROJECTOR_NETCDF
-    if (inp.out_tb2j)
-    {
-        // Immutable all-channel capture of the ORIGINAL UPF files (full-mesh
-        // parse, per-species raw-byte SHA256) with the native rank-zero-only
-        // IO and uniform-quit error policy. Runs before stp.before_runner so
-        // the snapshot predates every initializer mutation; nothing is
-        // allocated when the flag is off.
-        this->atomic_basis_ = ModuleIO::Tb2j::AtomicBasis::capture(ucell,
-                                                                   inp.pseudo_dir,
-                                                                   PARAM.globalv.nqx,
-                                                                   PARAM.globalv.dq);
-    }
-#endif
 
     this->stp.before_runner(ucell, this->kv, this->sf, *this->pw_wfc, this->ppcell.lmaxkb, *this->inp_);
 
@@ -585,10 +568,10 @@ void ESolver_KS_PW<T, Device>::after_all_runners(BaseCell& basecell)
     {
         if (!this->conv_esolver || this->inp_->calculation == "nscf")
         {
-            ModuleBase::WARNING_QUIT("TB2J native state", "Projector export requires a converged SCF state");
+            ModuleBase::WARNING_QUIT("TB2J PW export", "Projector export requires a converged SCF state");
         }
-        ModuleIO::Tb2j::export_projector(
-            ucell, this->kv, *this->pelec, this->chr, *this->inp_, *this->atomic_basis_,
+        ModuleIO::Tb2j::export_to_tb2j(
+            ucell, this->kv, *this->pelec, this->chr, *this->inp_,
             this->sf, *this->pw_wfc, *this->pw_rhod, *this->pw_rho, this->stp);
     }
 #endif

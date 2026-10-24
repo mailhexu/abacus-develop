@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "source_io/module_tb2j/native_state.h"
+#include "source_io/module_tb2j/pw_scf_data.h"
 #include "source_base/constants.h"
 
 #include <algorithm>
@@ -12,7 +12,7 @@
 namespace
 {
 using ModuleIO::Tb2j::GridRecipe;
-using ModuleIO::Tb2j::NativeState;
+using ModuleIO::Tb2j::PwScfData;
 using ModuleIO::Tb2j::SpectralBlock;
 
 GridRecipe recipe(const std::string& convention = "Gamma")
@@ -35,7 +35,7 @@ struct Rows
     std::vector<double> weight;
     ModuleBase::matrix energy, wg;
 
-    explicit Rows(const NativeState& state)
+    explicit Rows(const PwScfData& state)
         : global(8), spin(8), k(8), weight(8, 0.25), energy(8, 2), wg(8, 2)
     {
         // Intentionally shuffled local rows; global identity is not row index.
@@ -66,12 +66,12 @@ struct Rows
 };
 }
 
-TEST(Tb2jNativeState, GeneratedGammaAndMpPreserveShuffledSpectraAndCounts)
+TEST(Tb2jPwScfData, GeneratedGammaAndMpPreserveShuffledSpectraAndCounts)
 {
     for (const auto& convention : {"Gamma", "MP"})
     {
         std::string error;
-        auto state = NativeState::create(recipe(convention), 2, error);
+        auto state = PwScfData::create(recipe(convention), 2, error);
         ASSERT_NE(nullptr, state) << error;
         Rows rows(*state);
         ASSERT_TRUE(state->append(rows.view(), error)) << error;
@@ -102,10 +102,10 @@ TEST(Tb2jNativeState, GeneratedGammaAndMpPreserveShuffledSpectraAndCounts)
     }
 }
 
-TEST(Tb2jNativeState, CustomWeightedOccupationsAreNotAnIntegerSplitOrCapped)
+TEST(Tb2jPwScfData, CustomWeightedOccupationsAreNotAnIntegerSplitOrCapped)
 {
     std::string error;
-    auto state = NativeState::create(recipe(), 2, error);
+    auto state = PwScfData::create(recipe(), 2, error);
     ASSERT_NE(nullptr, state) << error;
     Rows rows(*state);
     // row 1 is native global 0; custom wg is already weighted.
@@ -118,7 +118,7 @@ TEST(Tb2jNativeState, CustomWeightedOccupationsAreNotAnIntegerSplitOrCapped)
     EXPECT_NEAR(0.7, state->electrons[1], 1e-14);
 }
 
-TEST(Tb2jNativeState, RejectsUnprovableReducedAndInvalidRecipes)
+TEST(Tb2jPwScfData, RejectsUnprovableReducedAndInvalidRecipes)
 {
     for (int which = 0; which < 7; ++which)
     {
@@ -131,17 +131,17 @@ TEST(Tb2jNativeState, RejectsUnprovableReducedAndInvalidRecipes)
         if (which == 5) value.convention = "Direct";
         if (which == 6) value.offsets[0] = std::numeric_limits<double>::infinity();
         std::string error;
-        EXPECT_EQ(nullptr, NativeState::create(value, 2, error));
+        EXPECT_EQ(nullptr, PwScfData::create(value, 2, error));
         EXPECT_FALSE(error.empty());
     }
 }
 
-TEST(Tb2jNativeState, RejectsDuplicateMissingAndSpinMismatchedCoverage)
+TEST(Tb2jPwScfData, RejectsDuplicateMissingAndSpinMismatchedCoverage)
 {
     for (int which = 0; which < 3; ++which)
     {
         std::string error;
-        auto state = NativeState::create(recipe(), 2, error);
+        auto state = PwScfData::create(recipe(), 2, error);
         ASSERT_NE(nullptr, state) << error;
         Rows rows(*state);
         if (which == 0)
@@ -177,12 +177,12 @@ TEST(Tb2jNativeState, RejectsDuplicateMissingAndSpinMismatchedCoverage)
     }
 }
 
-TEST(Tb2jNativeState, RejectsWrongPointZeroWeightAndNonfiniteSpectrum)
+TEST(Tb2jPwScfData, RejectsWrongPointZeroWeightAndNonfiniteSpectrum)
 {
     for (int which = 0; which < 4; ++which)
     {
         std::string error;
-        auto state = NativeState::create(recipe(), 2, error);
+        auto state = PwScfData::create(recipe(), 2, error);
         ASSERT_NE(nullptr, state) << error;
         Rows rows(*state);
         if (which == 0) rows.k[0].x += 0.01;
@@ -194,12 +194,12 @@ TEST(Tb2jNativeState, RejectsWrongPointZeroWeightAndNonfiniteSpectrum)
     }
 }
 
-TEST(Tb2jNativeState, RejectsUnequalSpinWeightsNonuniformWeightsAndElectronMismatch)
+TEST(Tb2jPwScfData, RejectsUnequalSpinWeightsNonuniformWeightsAndElectronMismatch)
 {
     for (int which = 0; which < 3; ++which)
     {
         std::string error;
-        auto state = NativeState::create(recipe(), 2, error);
+        auto state = PwScfData::create(recipe(), 2, error);
         ASSERT_NE(nullptr, state) << error;
         Rows rows(*state);
         if (which == 0)

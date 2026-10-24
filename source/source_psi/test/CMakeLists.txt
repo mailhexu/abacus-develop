@@ -1,17 +1,9 @@
 AddTest(
     TARGET MODULE_PSI_Unittests
     LIBS parameter base device
-    SOURCES
+    SOURCES 
         psi_test.cpp
-        ../psi.cpp
-)
-
-AddTest(
-    TARGET MODULE_PSI_atomic_radial_transform
-    LIBS base device
-    SOURCES
-        atomic_radial_transform_test.cpp
-        ../atomic_radial_transform.cpp
+        ../psi.cpp 
 )
 
 if(ENABLE_LCAO)
