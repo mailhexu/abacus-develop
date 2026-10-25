@@ -7,8 +7,10 @@
 #include "source_io/module_parameter/input_parameter.h"
 #include "source_main/version.h"
 
+#include <array>
 #include <netcdf.h>
-#include <nlohmann/json.hpp>
+
+
 
 #include <algorithm>
 #include <cerrno>
@@ -154,6 +156,158 @@ void put_scalar(const int ncid, const char* name, const double value)
 {
     check(nc_put_att_double(ncid, NC_GLOBAL, name, NC_DOUBLE, 1, &value),
           std::string("writing attribute ") + name);
+}
+void put_string_array(const int ncid, const int varid, const char* name,
+                      const char** values, const std::size_t count)
+{
+    check(nc_put_att_string(ncid, varid, name, count, values),
+          std::string("writing attribute ") + name);
+}
+
+
+void put_int_attribute(const int ncid, const char* name, const int value)
+{
+    check(nc_put_att_int(ncid, NC_GLOBAL, name, NC_INT, 1, &value),
+          std::string("writing attribute ") + name);
+}
+
+
+void put_byte_attribute(const int ncid, const char* name, const bool value)
+{
+    const signed char encoded = value ? 1 : 0;
+    check(nc_put_att_schar(ncid, NC_GLOBAL, name, NC_BYTE, 1, &encoded),
+          std::string("writing attribute ") + name);
+}
+
+void put_int_array(const int ncid, const char* name, const std::vector<int>& values)
+{
+    check(nc_put_att_int(ncid, NC_GLOBAL, name, NC_INT, values.size(), values.data()),
+          std::string("writing attribute ") + name);
+}
+
+void put_double_array(const int ncid, const char* name, const double* values,
+                      const std::size_t count)
+{
+    check(nc_put_att_double(ncid, NC_GLOBAL, name, NC_DOUBLE, count, values),
+          std::string("writing attribute ") + name);
+}
+
+int define_group(const int parent, const char* name)
+{
+    int group = -1;
+    check(nc_def_grp(parent, name, &group), std::string("creating metadata group ") + name);
+    return group;
+}
+
+void write_metadata(const int ncid, const Input_para& input, const PwScfData& state,
+                    const AtomicBasis& basis)
+{
+    static const char* complex_labels[] = {"real", "imag"};
+    check(nc_put_att_string(ncid, NC_GLOBAL, "complex_component", 2, complex_labels),
+          "writing complex_component");
+    const int metadata = define_group(ncid, "metadata");
+    put_text(metadata, NC_GLOBAL, "source_code", "abacus");
+    put_text(metadata, NC_GLOBAL, "producer", "ABACUS plane-wave UPF atomic-wavefunction projector exporter");
+#ifdef VERSION
+    put_text(metadata, NC_GLOBAL, "source_version", VERSION);
+#else
+    put_text(metadata, NC_GLOBAL, "source_version", "unknown");
+#endif
+    put_text(metadata, NC_GLOBAL, "operator_basis", "norm_conserving_pao");
+    put_text(metadata, NC_GLOBAL, "source_basis",
+             "all-channel UPF atomic wavefunctions (no PAW augmentation or beta projectors)");
+    put_text(metadata, NC_GLOBAL, "kpoint_convention", "fractional_reciprocal");
+    put_text(metadata, NC_GLOBAL, "phase_convention", "exp(-2*pi*i*k.R)");
+    put_text(metadata, NC_GLOBAL, "storage_level", "spectral");
+    put_text(metadata, NC_GLOBAL, "coefficient_definition",
+             "raw primal projection C[spin,k,band,p] = <phi_p|psi_band> against all-channel "
+             "UPF atomic-wavefunction PW fill (real harmonics lm = l*l + m with m = 0..2l, "
+             "radial phase pow(-i,l)); never dualized");
+    put_text(metadata, NC_GLOBAL, "overlap_metric_policy",
+             "raw covariant full projector overlap stored per k; the consumer applies the inverse "
+             "metric with the inherited condition limit 1e12 (producer-side guard 1e12)");
+    put_text(metadata, NC_GLOBAL, "operator_scope",
+             "complete onsite R=0 full-BZ-weighted XC-only spin-difference vertex for every atom, "
+             "from native reevaluation of the converged charge; no Hubbard/U/SOC contribution");
+    put_int_attribute(metadata, "nspin", 2);
+    put_text(metadata, NC_GLOBAL, "basis_type", input.basis_type);
+    put_text(metadata, NC_GLOBAL, "ks_solver", input.ks_solver);
+
+    const int units = define_group(metadata, "units");
+    put_text(units, NC_GLOBAL, "cell", "Angstrom");
+    put_text(units, NC_GLOBAL, "positions", "Angstrom");
+    put_text(units, NC_GLOBAL, "eigenvalues", "eV");
+    put_text(units, NC_GLOBAL, "efermi", "eV");
+    put_text(units, NC_GLOBAL, "delta_total", "eV");
+    const int cutoff = define_group(metadata, "cutoff");
+    put_scalar(cutoff, "ecutwfc_ry", input.ecutwfc);
+    put_scalar(cutoff, "ecutrho_ry", input.ecutrho);
+    const int smearing = define_group(metadata, "smearing");
+    put_text(smearing, NC_GLOBAL, "method", input.smearing_method);
+    put_scalar(smearing, "sigma_ry", input.smearing_sigma);
+    const int controls = define_group(metadata, "scf_controls");
+    put_int_attribute(controls, "nmax", input.scf_nmax);
+    put_scalar(controls, "thr", input.scf_thr);
+    put_int_attribute(controls, "thr_type", input.scf_thr_type);
+    put_scalar(controls, "ene_thr_ev", input.scf_ene_thr);
+    put_text(controls, NC_GLOBAL, "mixing_mode", input.mixing_mode);
+    put_scalar(controls, "mixing_beta", input.mixing_beta);
+    const int occupations = define_group(metadata, "occupations");
+    put_byte_attribute(occupations, "custom", state.custom_occupations);
+    put_text(occupations, NC_GLOBAL, "definition",
+             "native weighted occupations divided by the corresponding native unique-k weight "
+             "(dimensionless)");
+    put_double_array(occupations, "native_electrons", state.native_electrons.data(), 2);
+    put_double_array(occupations, "common_electrons", state.electrons.data(), 2);
+    if (std::isfinite(state.native_weight_sum) && state.native_weight_sum > 0.0)
+    {
+        put_scalar(metadata, "native_weight_sum", state.native_weight_sum);
+    }
+    const int recipe = define_group(metadata, "grid_recipe");
+    put_byte_attribute(recipe, "generated", state.recipe.generated);
+    put_text(recipe, NC_GLOBAL, "convention", state.recipe.convention);
+    put_int_attribute(recipe, "symmetry", state.recipe.symmetry);
+    put_int_attribute(recipe, "input_count", state.recipe.input_count);
+    put_int_attribute(recipe, "original_count", state.recipe.original_count);
+    check(nc_put_att_int(recipe, NC_GLOBAL, "dimensions", NC_INT, 3, state.recipe.dimensions.data()),
+          "writing attribute dimensions");
+    check(nc_put_att_double(recipe, NC_GLOBAL, "offsets", NC_DOUBLE, 3, state.recipe.offsets.data()),
+          "writing attribute offsets");
+    const double weight_sum = std::accumulate(state.weights.begin(), state.weights.end(), 0.0);
+    put_scalar(recipe, "k_weight_sum", weight_sum);
+
+    const int functional = define_group(metadata, "functional");
+    put_text(functional, NC_GLOBAL, "requested", input.dft_functional);
+    put_int_attribute(functional, "actual_func_type", XC_Functional::get_func_type());
+    put_text(functional, NC_GLOBAL, "actual_func_type_meaning",
+             func_type_meaning(XC_Functional::get_func_type()));
+    const std::vector<int> func_ids = XC_Functional::get_func_id();
+    put_int_array(functional, "libxc_func_ids", func_ids);
+
+    static const char* spin_labels[] = {"up", "down"};
+    put_string_array(metadata, NC_GLOBAL, "spin_channels", spin_labels, 2);
+    const int species = define_group(metadata, "species");
+    for (int it = 0; it < basis.ntype(); ++it)
+    {
+        const SpeciesBasis& sp = basis.species(it);
+        const std::string species_name = "species_" + std::to_string(it);
+        const int species_group = define_group(species, species_name.c_str());
+        put_text(species_group, NC_GLOBAL, "label", sp.label);
+        put_text(species_group, NC_GLOBAL, "pseudo_file", sp.pseudo_file);
+        put_int_attribute(species_group, "natoms", sp.natoms);
+        put_int_attribute(species_group, "mesh", sp.mesh);
+        const int channels = define_group(species_group, "channels");
+        for (std::size_t radial = 0; radial < sp.channels.size(); ++radial)
+        {
+            const AtomicChannel& channel = sp.channels[radial];
+            const std::string channel_name = "channel_" + std::to_string(radial);
+            const int channel_group = define_group(channels, channel_name.c_str());
+            put_text(channel_group, NC_GLOBAL, "label", channel.label);
+            put_int_attribute(channel_group, "radial_channel", static_cast<int>(radial));
+            put_int_attribute(channel_group, "l", channel.l);
+            put_scalar(channel_group, "occupation", channel.occupation);
+        }
+    }
 }
 
 /// Unique destination-sibling partial reserved through mkstemp.
@@ -310,105 +464,12 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const PwScfData
             throw std::runtime_error("TB2J harmonic map does not cover every projector row exactly once");
         }
 
-        // ---- source, channel, metric and operator metadata ----
-        nlohmann::ordered_json meta;
-        meta["source_code"] = "abacus";
-        meta["producer"] = "ABACUS plane-wave UPF atomic-wavefunction projector exporter";
-#ifdef VERSION
-        meta["source_version"] = std::string(VERSION);
-#else
-        meta["source_version"] = "unknown";
-#endif
-        meta["operator_basis"] = "norm_conserving_pao";
-        meta["source_basis"] =
-            "all-channel UPF atomic wavefunctions (no PAW augmentation or beta projectors)";
-        meta["units"] = {{"cell", "Angstrom"},
-                         {"positions", "Angstrom"},
-                         {"eigenvalues", "eV"},
-                         {"efermi", "eV"},
-                         {"delta_total", "eV"}};
-        meta["kpoint_convention"] = "fractional_reciprocal";
-        meta["phase_convention"] = "exp(-2*pi*i*k.R)";
-        meta["complex_component"] = {"real", "imag"};
-        meta["storage_level"] = "spectral";
-        meta["nspin"] = 2;
-        meta["spin_channels"] = {"up", "down"};
-        meta["basis_type"] = input.basis_type;
-        meta["ks_solver"] = input.ks_solver;
-        meta["cutoff"] = {{"ecutwfc_ry", input.ecutwfc}, {"ecutrho_ry", input.ecutrho}};
-        meta["smearing"] = {{"method", input.smearing_method}, {"sigma_ry", input.smearing_sigma}};
-        meta["scf_controls"] = {{"nmax", input.scf_nmax},
-                                {"thr", input.scf_thr},
-                                {"thr_type", input.scf_thr_type},
-                                {"ene_thr_ev", input.scf_ene_thr},
-                                {"mixing_mode", input.mixing_mode},
-                                {"mixing_beta", input.mixing_beta}};
-        meta["occupations"] = {
-            {"custom", state_.custom_occupations},
-            {"definition",
-             "native weighted occupations divided by the corresponding native unique-k weight "
-             "(dimensionless)"},
-            {"native_electrons", {state_.native_electrons[0], state_.native_electrons[1]}},
-            {"common_electrons", {state_.electrons[0], state_.electrons[1]}}};
-        if (std::isfinite(state_.native_weight_sum) && state_.native_weight_sum > 0.0)
-        {
-            meta["native_weight_sum"] = state_.native_weight_sum;
-        }
-        meta["grid_recipe"] = {{"generated", state_.recipe.generated},
-                               {"convention", state_.recipe.convention},
-                               {"symmetry", state_.recipe.symmetry},
-                               {"input_count", state_.recipe.input_count},
-                               {"original_count", state_.recipe.original_count},
-                               {"dimensions", {state_.recipe.dimensions[0],
-                                               state_.recipe.dimensions[1],
-                                               state_.recipe.dimensions[2]}},
-                               {"offsets", {state_.recipe.offsets[0], state_.recipe.offsets[1],
-                                            state_.recipe.offsets[2]}},
-                               {"k_weight_sum", std::accumulate(state_.weights.begin(),
-                                                                state_.weights.end(), 0.0)}};
-        meta["functional"] = {
-            {"requested", input.dft_functional},
-            {"actual_func_type", XC_Functional::get_func_type()},
-            {"actual_func_type_meaning", func_type_meaning(XC_Functional::get_func_type())},
-            {"libxc_func_ids", XC_Functional::get_func_id()}};
-        meta["coefficient_definition"] =
-            "raw primal projection C[spin,k,band,p] = <phi_p|psi_band> against all-channel "
-            "UPF atomic-wavefunction PW fill (real harmonics lm = l*l + m with m = 0..2l, "
-            "radial phase pow(-i,l)); never dualized";
-        meta["overlap_metric_policy"] =
-            "raw covariant full projector overlap stored per k; the consumer applies the inverse "
-            "metric with the inherited condition limit 1e12 (producer-side guard 1e12)";
-        meta["operator_scope"] =
-            "complete onsite R=0 full-BZ-weighted XC-only spin-difference vertex for every atom, "
-            "from native reevaluation of the converged charge; no Hubbard/U/SOC contribution";
-        nlohmann::ordered_json species_meta = nlohmann::ordered_json::array();
-        for (int it = 0; it < basis_.ntype(); ++it)
-        {
-            const SpeciesBasis& sp = basis_.species(it);
-            nlohmann::ordered_json entry;
-            entry["label"] = sp.label;
-            entry["pseudo_file"] = sp.pseudo_file;
-            entry["natoms"] = sp.natoms;
-            entry["mesh"] = sp.mesh;
-            nlohmann::ordered_json channel_meta = nlohmann::ordered_json::array();
-            for (std::size_t radial = 0; radial < sp.channels.size(); ++radial)
-            {
-                const AtomicChannel& channel = sp.channels[radial];
-                nlohmann::ordered_json item;
-                item["label"] = channel.label;
-                item["radial_channel"] = radial;
-                item["l"] = channel.l;
-                item["occupation"] = channel.occupation;
-                channel_meta.push_back(item);
-            }
-            entry["channels"] = channel_meta;
-            species_meta.push_back(entry);
-        }
-        meta["species"] = species_meta;
 
         // ---- partial file and NetCDF-4 dataset definition ----
         partial_ = make_partial(destination_);
         check(nc_create(partial_.c_str(), NC_NETCDF4, &ncid_), "creating partial dataset");
+        write_metadata(ncid_, input, state_, basis_);
+
         const int dim_spin = define_dim(ncid_, "nspin", 2);
         const int dim_k = define_dim(ncid_, "nkpt", nkpt);
         const int dim_band = define_dim(ncid_, "nband", nband);
@@ -465,8 +526,6 @@ ProjectorNetcdf::ProjectorNetcdf(const std::string& destination, const PwScfData
 
         put_text(ncid_, NC_GLOBAL, "schema_name", "tb2j.projector_green");
         put_text(ncid_, NC_GLOBAL, "schema_version", "1.0");
-        put_text(ncid_, NC_GLOBAL, "metadata_json", meta.dump());
-        put_text(ncid_, NC_GLOBAL, "complex_component", nlohmann::ordered_json({"real", "imag"}).dump());
         put_scalar(bands, "efermi", 0.5 * (state_.efermi_spin[0] + state_.efermi_spin[1]));
         put_text(projectors_, NC_GLOBAL, "coefficient_source", "nc_pao");
         put_text(projectors_, NC_GLOBAL, "coefficient_projector", "upf_atomic_wavefunction");

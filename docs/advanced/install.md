@@ -25,16 +25,14 @@ cmake -B build -DENABLE_LIBXC=ON
 
 ## Build with TB2J PW atomic-projector support
 
-Build with the existing `-DENABLE_JSON=ON` option and the NetCDF C library.
-The exporter reuses ABACUS's JSON support only to encode metadata; numerical
-arrays are stored in NetCDF. `source/CMakeLists.txt` checks only for the NetCDF
-header/library, with no extra capability probe or JSON package lookup.
-NetCDF-4 group support is required when writing the file; the writer reports
-an error if creation fails. Without JSON enabled or NetCDF found, the optional
-exporter is unavailable and ordinary ABACUS builds remain supported.
-Use `CMAKE_PREFIX_PATH`, `nlohmann_json_DIR`, `TB2J_NETCDF_INCLUDE_DIR`, or
-`TB2J_NETCDF_C_LIBRARY` for nonstandard installations. There is no exporter
-build switch.
+Build with the NetCDF C header and library. The exporter stores its metadata
+as native typed NetCDF attributes and groups; it does not require ABACUS JSON
+support or nlohmann-json. `source/CMakeLists.txt` checks only for the NetCDF
+header and library. NetCDF-4 group support is required when writing the file;
+the writer reports an error if creation fails. Without NetCDF, the optional
+exporter is unavailable and requesting it fails with an actionable message.
+Use `TB2J_NETCDF_INCLUDE_DIR` and `TB2J_NETCDF_C_LIBRARY` for nonstandard
+installations. There is no exporter build switch.
 
 Request export in a converged plane-wave Kohn–Sham SCF input:
 

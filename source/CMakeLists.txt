@@ -29,11 +29,11 @@ add_library(abacus_compile_requirements INTERFACE)
 add_library(abacus::compile_requirements ALIAS abacus_compile_requirements)
 include(CompilerConfiguration)
 
-# The exporter reuses ENABLE_JSON for metadata and needs the NetCDF C library.
+# The projector exporter depends only on the NetCDF C header and library.
 find_path(TB2J_NETCDF_INCLUDE_DIR NAMES netcdf.h)
 find_library(TB2J_NETCDF_C_LIBRARY NAMES netcdf)
 set(TB2J_PROJECTOR_NETCDF_AVAILABLE OFF)
-if(ENABLE_JSON AND TB2J_NETCDF_INCLUDE_DIR AND TB2J_NETCDF_C_LIBRARY)
+if(TB2J_NETCDF_INCLUDE_DIR AND TB2J_NETCDF_C_LIBRARY)
   set(TB2J_PROJECTOR_NETCDF_AVAILABLE ON)
 endif()
 
