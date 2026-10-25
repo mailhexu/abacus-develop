@@ -299,8 +299,8 @@ With `init_wfc file binary`, ABACUS reads only unindexed binary `wf*_pw.dat` fil
         item.type = "Boolean";
         item.description = "Request the TB2J atomic-projector dataset for a converged scalar norm-conserving "
                            "UPF PW calculation with two collinear spins, no U/SOC, and a generated "
-                           "full-BZ mesh (symmetry -1). The exporter is enabled automatically when "
-                           "usable optional NetCDF-4 and JSON dependencies are available and supports "
+                           "full-BZ mesh (symmetry -1). The exporter requires ENABLE_JSON=ON "
+                           "and the NetCDF C library with NetCDF-4 support, and supports "
                            "CPU complex-double only.";
         item.default_value = "false";
         item.unit = "";
@@ -314,8 +314,8 @@ With `init_wfc file binary`, ABACUS reads only unindexed binary `wf*_pw.dat` fil
             }
 #ifndef __TB2J_PROJECTOR_NETCDF
             ModuleBase::WARNING_QUIT("ReadInput",
-                                    "out_tb2j requires a build with usable NetCDF-4 and nlohmann-json support; "
-                                    "install any missing dependency and rebuild ABACUS.");
+                                    "out_tb2j requires ENABLE_JSON=ON and the NetCDF C library; "
+                                    "enable JSON support, install NetCDF if missing, and rebuild ABACUS.");
 #else
             if (input.basis_type != "pw" || input.esolver_type != "ksdft"
                 || input.nspin != 2 || input.noncolin || input.lspinorb || input.dft_plus_u != 0)

@@ -46,7 +46,10 @@ std::vector<SiteBlock> atomic_sites(const AtomicBasis& basis)
         {
             const std::size_t offset = result.empty() ? 0 : result.back().offset
                 + static_cast<std::size_t>(result.back().count)*result.back().count;
-            result.push_back({channel.start, channel.count, offset});
+            result.emplace_back();
+            result.back().first = channel.start;
+            result.back().count = channel.count;
+            result.back().offset = offset;
             previous_it = channel.it;
             previous_ia = channel.ia;
         }

@@ -104,7 +104,7 @@ std::unique_ptr<SpeciesBasis> AtomicBasis::capture_species(const std::string& fi
             return nullptr;
         }
     }
-    auto snapshot = std::make_unique<SpeciesBasis>();
+    std::unique_ptr<SpeciesBasis> snapshot(new SpeciesBasis());
 
     snapshot->label = label;
     snapshot->pseudo_file = filename;

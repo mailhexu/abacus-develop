@@ -29,44 +29,12 @@ add_library(abacus_compile_requirements INTERFACE)
 add_library(abacus::compile_requirements ALIAS abacus_compile_requirements)
 include(CompilerConfiguration)
 
-# Enable the optional TB2J projector exporter only when NetCDF-4 and the JSON
-# backend it uses are both available. Detection stays inside the source build
-# layer so ordinary ABACUS builds do not acquire new required dependencies.
-set(TB2J_PROJECTOR_NETCDF_AVAILABLE OFF)
+# The exporter reuses ENABLE_JSON for metadata and needs the NetCDF C library.
 find_path(TB2J_NETCDF_INCLUDE_DIR NAMES netcdf.h)
 find_library(TB2J_NETCDF_C_LIBRARY NAMES netcdf)
-if(TB2J_NETCDF_INCLUDE_DIR AND TB2J_NETCDF_C_LIBRARY)
-  include(CheckCXXSourceCompiles)
-  include(CMakePushCheckState)
-  cmake_push_check_state(RESET)
-  set(CMAKE_REQUIRED_INCLUDES "${TB2J_NETCDF_INCLUDE_DIR}")
-  set(CMAKE_REQUIRED_LIBRARIES "${TB2J_NETCDF_C_LIBRARY}")
-  unset(TB2J_NETCDF_HAS_NC4 CACHE)
-  check_cxx_source_compiles("
-    #include <netcdf.h>
-    #include <netcdf_meta.h>
-    #if !NC_HAS_HDF5
-    #error NetCDF-4 group support is required
-    #endif
-    int main() { int group; return nc_def_grp(-1, \"tb2j\", &group); }
-    " TB2J_NETCDF_HAS_NC4)
-  cmake_pop_check_state()
-
-  if(TB2J_NETCDF_HAS_NC4)
-    if(NOT ENABLE_JSON)
-      find_package(nlohmann_json QUIET)
-    endif()
-    if(TARGET nlohmann_json::nlohmann_json)
-      set(TB2J_PROJECTOR_NETCDF_AVAILABLE ON)
-      add_library(abacus_tb2j_netcdf UNKNOWN IMPORTED)
-      set_target_properties(abacus_tb2j_netcdf PROPERTIES
-        IMPORTED_LOCATION "${TB2J_NETCDF_C_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${TB2J_NETCDF_INCLUDE_DIR}")
-    elseif(NOT ENABLE_JSON)
-      message(STATUS
-        "TB2J projector exporter disabled: nlohmann-json was not found and ENABLE_JSON is OFF.")
-    endif()
-  endif()
+set(TB2J_PROJECTOR_NETCDF_AVAILABLE OFF)
+if(ENABLE_JSON AND TB2J_NETCDF_INCLUDE_DIR AND TB2J_NETCDF_C_LIBRARY)
+  set(TB2J_PROJECTOR_NETCDF_AVAILABLE ON)
 endif()
 
 
@@ -316,7 +284,7 @@ endif()
 # ------------------------------------------------------------------------------
 
 set(_abacus_feature_libs
-    $<$<OR:$<BOOL:${ENABLE_JSON}>,$<BOOL:${TB2J_PROJECTOR_NETCDF_AVAILABLE}>>:nlohmann_json::nlohmann_json>
+    $<$<BOOL:${ENABLE_JSON}>:nlohmann_json::nlohmann_json>
     $<$<BOOL:${ENABLE_ELPA}>:ELPA::ELPA>
     $<$<BOOL:${ENABLE_PEXSI}>:PEXSI::PEXSI>
     $<$<BOOL:${ENABLE_CNPY}>:cnpy>
@@ -325,7 +293,7 @@ set(_abacus_feature_libs
     $<$<BOOL:${ENABLE_LIBXC}>:Libxc::xc>
     $<$<BOOL:${ENABLE_PLUMED}>:PLUMED::plumed>)
 if(TB2J_PROJECTOR_NETCDF_AVAILABLE)
-  list(APPEND _abacus_feature_libs abacus_tb2j_netcdf)
+  list(APPEND _abacus_feature_libs "${TB2J_NETCDF_C_LIBRARY}")
 endif()
 set(_abacus_feature_include_dirs)
 if(TB2J_PROJECTOR_NETCDF_AVAILABLE)
